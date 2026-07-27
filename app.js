@@ -578,6 +578,13 @@ function setScreen(screen) {
   $("fileScreen")?.classList.toggle("is-hidden", next !== "file");
   $("receiveScreen")?.classList.toggle("is-hidden", next !== "receive");
 
+  document.querySelectorAll(".mobile-nav-item[data-screen], .nav-links [data-screen]").forEach((el) => {
+    const active = el.getAttribute("data-screen") === next;
+    el.classList.toggle("is-active", active);
+    if (active) el.setAttribute("aria-current", "page");
+    else el.removeAttribute("aria-current");
+  });
+
   const path = window.location.pathname;
   const hash = window.location.hash || "";
   const currentParams = new URLSearchParams(window.location.search);
@@ -591,6 +598,8 @@ function setScreen(screen) {
     history.replaceState(null, "", `${path}?tab=${next}`);
   }
   updateReceiveEmpty();
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function setMode(mode) {
@@ -1320,6 +1329,9 @@ fileForm?.addEventListener("submit", async (event) => {
       fileStatus,
       `File capsule ready with ${capsule.attachments.length} file(s). Download and share the .capsule.html file.`,
     );
+    const fileResult = document.querySelector("#fileScreen .file-result");
+    fileResult?.scrollIntoView({ behavior: "smooth", block: "start" });
+    $("fileDownloadCapsule")?.focus({ preventScroll: true });
   } catch (error) {
     setStatus(fileStatus, error.message || "Could not create file capsule.", true);
   }

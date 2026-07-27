@@ -10,6 +10,8 @@
       content="Prompt Capsule securely shares encrypted AI prompts and files in the browser."
     />
     <title>Prompt Capsule</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -19,18 +21,70 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <!-- Animated Background Gears -->
+    <div class="gear-container">
+      <svg class="gear gear-1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="20" fill="none" stroke="currentColor" stroke-width="2"/>
+        <g stroke="currentColor" stroke-width="2" fill="none">
+          <rect x="48" y="10" width="4" height="15"/>
+          <rect x="48" y="75" width="4" height="15"/>
+          <rect x="10" y="48" width="15" height="4"/>
+          <rect x="75" y="48" width="15" height="4"/>
+          <rect x="17" y="17" width="11" height="11"/>
+          <rect x="72" y="72" width="11" height="11"/>
+          <rect x="72" y="17" width="11" height="11"/>
+          <rect x="17" y="72" width="11" height="11"/>
+        </g>
+      </svg>
+      <svg class="gear gear-2" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="18" fill="none" stroke="currentColor" stroke-width="2"/>
+        <g stroke="currentColor" stroke-width="2" fill="none">
+          <rect x="48" y="12" width="4" height="14"/>
+          <rect x="48" y="74" width="4" height="14"/>
+          <rect x="12" y="48" width="14" height="4"/>
+          <rect x="74" y="48" width="14" height="4"/>
+          <rect x="19" y="19" width="10" height="10"/>
+          <rect x="71" y="71" width="10" height="10"/>
+          <rect x="71" y="19" width="10" height="10"/>
+          <rect x="19" y="71" width="10" height="10"/>
+        </g>
+      </svg>
+      <svg class="gear gear-3" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="22" fill="none" stroke="currentColor" stroke-width="2"/>
+        <g stroke="currentColor" stroke-width="2" fill="none">
+          <rect x="48" y="8" width="4" height="16"/>
+          <rect x="48" y="76" width="4" height="16"/>
+          <rect x="8" y="48" width="16" height="4"/>
+          <rect x="76" y="48" width="16" height="4"/>
+          <rect x="15" y="15" width="12" height="12"/>
+          <rect x="73" y="73" width="12" height="12"/>
+          <rect x="73" y="15" width="12" height="12"/>
+          <rect x="15" y="73" width="12" height="12"/>
+        </g>
+      </svg>
+      <svg class="gear gear-4" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="19" fill="none" stroke="currentColor" stroke-width="2"/>
+        <g stroke="currentColor" stroke-width="2" fill="none">
+          <rect x="48" y="11" width="4" height="15"/>
+          <rect x="48" y="74" width="4" height="15"/>
+          <rect x="11" y="48" width="15" height="4"/>
+          <rect x="74" y="48" width="15" height="4"/>
+          <rect x="18" y="18" width="11" height="11"/>
+          <rect x="71" y="71" width="11" height="11"/>
+          <rect x="71" y="18" width="11" height="11"/>
+          <rect x="18" y="71" width="11" height="11"/>
+        </g>
+      </svg>
+    </div>
+
     <header class="topbar">
-      <nav class="nav-inner" aria-label="Prompt Capsule">
-        <a class="brand" href="./" data-screen="home" aria-label="Prompt Capsule home">
-          <span class="brand-mark" aria-hidden="true">PC</span>
-          <span class="brand-text">Prompt Capsule</span>
-        </a>
+      <nav class="nav-inner" aria-label="Main">
         <div class="nav-links" aria-label="Sections">
-          <button type="button" data-screen="prompt">Prompt</button>
-          <button type="button" data-screen="file">Files</button>
-          <button type="button" data-screen="receive">Receive</button>
+          <button type="button" data-screen="home" class="nav-button">Home</button>
+          <button type="button" data-screen="prompt" class="nav-button">Prompt</button>
+          <button type="button" data-screen="file" class="nav-button">Files</button>
+          <button type="button" data-screen="receive" class="nav-button">Receive</button>
         </div>
-        <span class="nav-spacer" aria-hidden="true"></span>
       </nav>
     </header>
 

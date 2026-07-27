@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="plate" x1="64" y1="0" x2="64" y2="128" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A1A1A6"/>
+      <stop offset="0.5" stop-color="#6C6C70"/>
+      <stop offset="1" stop-color="#48484A"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="64" y1="0" x2="64" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="gear" x1="64" y1="20" x2="64" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E5E5EA"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#plate)"/>
+  <rect width="128" height="128" rx="28" fill="url(#sheen)"/>
+  <path
+    fill="url(#gear)"
+    fill-rule="evenodd"
+    d="M59.2 24.2a5.2 5.2 0 0 1 9.6 0l2.2 5.8a29 29 0 0 1 8.4 3.5l6.1-1.7a5.2 5.2 0 0 1 6.3 6.3l-1.7 6.1a29 29 0 0 1 3.5 8.4l5.8 2.2a5.2 5.2 0 0 1 0 9.6l-5.8 2.2a29 29 0 0 1-3.5 8.4l1.7 6.1a5.2 5.2 0 0 1-6.3 6.3l-6.1-1.7a29 29 0 0 1-8.4 3.5l-2.2 5.8a5.2 5.2 0 0 1-9.6 0l-2.2-5.8a29 29 0 0 1-8.4-3.5l-6.1 1.7a5.2 5.2 0 0 1-6.3-6.3l1.7-6.1a29 29 0 0 1-3.5-8.4l-5.8-2.2a5.2 5.2 0 0 1 0-9.6l5.8-2.2a29 29 0 0 1 3.5-8.4l-1.7-6.1a5.2 5.2 0 0 1 6.3-6.3l6.1 1.7a29 29 0 0 1 8.4-3.5l2.2-5.8ZM64 48.5a15.5 15.5 0 1 0 0 31 15.5 15.5 0 0 0 0-31Zm0 8a7.5 7.5 0 1 1 0 15 7.5 7.5 0 0 1 0-15Z"
+  />
+</svg>

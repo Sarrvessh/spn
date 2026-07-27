@@ -57,7 +57,6 @@ const fileUnlockField = $("fileUnlockField");
 const fileShareLink = $("fileShareLink");
 const fileLinkSize = $("fileLinkSize");
 const fileLinkWarning = $("fileLinkWarning");
-const fileKeySummary = $("fileKeySummary");
 const fileCreateSeal = $("fileCreateSeal");
 const fileStatus = $("fileStatus");
 const fileResultHint = $("fileResultHint");
@@ -558,6 +557,10 @@ async function buildShareUrl(envelope, keyParam) {
   return `${baseUrl}#${fragment.toString()}`;
 }
 
+function buildReceiveOnlyUrl() {
+  return `${window.location.href.split("?")[0].split("#")[0]}?tab=receive&kind=file`;
+}
+
 function readFragment() {
   const hash = window.location.hash.startsWith("#")
     ? window.location.hash.slice(1)
@@ -577,10 +580,13 @@ function setScreen(screen) {
 
   const path = window.location.pathname;
   const hash = window.location.hash || "";
+  const currentParams = new URLSearchParams(window.location.search);
   if (next === "home") {
     history.replaceState(null, "", `${path}${hash}`);
   } else if (next === "receive") {
-    history.replaceState(null, "", `${path}?tab=receive${hash}`);
+    const params = new URLSearchParams({ tab: "receive" });
+    if (currentParams.get("kind") === "file") params.set("kind", "file");
+    history.replaceState(null, "", `${path}?${params.toString()}${hash}`);
   } else {
     history.replaceState(null, "", `${path}?tab=${next}`);
   }
@@ -602,9 +608,12 @@ function updateReceiveEmpty() {
   receiveEmpty.classList.remove("is-hidden");
   const title = $("receive-title");
   const copy = $("receiveEmptyCopy");
-  if (title) title.textContent = "Open a capsule";
+  const isFileReceive = new URLSearchParams(window.location.search).get("kind") === "file";
+  if (title) title.textContent = isFileReceive ? "Open the file capsule" : "Open a capsule";
   if (copy) {
-    copy.textContent = "Open a prompt or file capsule. Decryption stays in your browser.";
+    copy.textContent = isFileReceive
+      ? "Open the .capsule.html you were sent. File data is not in this link."
+      : "Open a prompt or file capsule. Decryption stays in your browser.";
   }
 }
 
@@ -621,12 +630,9 @@ function updateLinkMeter() {
 
 function updateFileLinkMeter() {
   if (!fileShareLink || !fileLinkSize) return;
-  const length = fileShareLink.value.length;
-  fileLinkSize.textContent = `${length.toLocaleString()} characters`;
-  if (fileLinkWarning) {
-    fileLinkWarning.textContent =
-      length > 7000 ? "Large link — some apps truncate very long URLs" : "";
-  }
+  const value = fileShareLink.value.trim();
+  fileLinkSize.textContent = value ? "Short link · no file data" : "Short link";
+  if (fileLinkWarning) fileLinkWarning.textContent = "";
 }
 
 function updateKeySummary(hasInlineKey, passwordProtected = false) {
@@ -1301,24 +1307,18 @@ fileForm?.addEventListener("submit", async (event) => {
     state.encryptedEnvelope = encrypted.envelope;
     state.currentKeyParam = encrypted.keyParam;
     rememberPackItem(encrypted.envelope, encrypted.keyParam);
-    fileShareLink.value = await buildShareUrl(encrypted.envelope, encrypted.keyParam);
+    fileShareLink.value = buildReceiveOnlyUrl();
     $("fileCopyLink").disabled = false;
+    $("fileDownloadCapsule").disabled = false;
     if (fileCreateSeal) fileCreateSeal.textContent = encrypted.envelope.seal || "—";
-    if (fileKeySummary) {
-      fileKeySummary.textContent = password
-        ? "password required"
-        : encrypted.keyParam
-          ? "#key included"
-          : "#key missing";
-    }
     updateFileLinkMeter();
     updateResultState();
     if (fileResultHint) {
-      fileResultHint.textContent = `Includes ${capsule.attachments.length} file(s) in a compressed encrypted link.`;
+      fileResultHint.textContent = `Includes ${capsule.attachments.length} file(s). Send the downloaded capsule — not a data link.`;
     }
     setStatus(
       fileStatus,
-      `File capsule created with ${capsule.attachments.length} file(s). Copy the compressed link to share.`,
+      `File capsule ready with ${capsule.attachments.length} file(s). Download and share the .capsule.html file.`,
     );
   } catch (error) {
     setStatus(fileStatus, error.message || "Could not create file capsule.", true);
@@ -1358,17 +1358,21 @@ $("resetFile")?.addEventListener("click", () => {
   renderPendingAttachments();
   setStatus(attachStatus, "");
   state.currentKeyParam = "";
-  if (fileResultHint) fileResultHint.textContent = "Files are packed and compressed into the encrypted link.";
+  if (fileResultHint) fileResultHint.textContent = "File data is not put in the link. Send the downloaded capsule.";
   $("fileCopyLink").disabled = true;
+  $("fileDownloadCapsule").disabled = true;
   if (fileCreateSeal) fileCreateSeal.textContent = "—";
-  if (fileKeySummary) fileKeySummary.textContent = "#key when available";
   updateFileLinkMeter();
   updateResultState();
   setStatus(fileStatus, "");
 });
 
 $("copyLink").addEventListener("click", () => copyText(shareLink.value, createStatus, "Link"));
-$("fileCopyLink")?.addEventListener("click", () => copyText(fileShareLink.value, fileStatus, "Link"));
+$("fileCopyLink")?.addEventListener("click", () => {
+  const url = fileShareLink.value || buildReceiveOnlyUrl();
+  const message = `${url}\n\nOpen this page, then use “Open Capsule file” with the .capsule.html you were sent.`;
+  copyText(message, fileStatus, "Receive link");
+});
 
 $("attachmentInput")?.addEventListener("change", async (event) => {
   const input = event.target;
@@ -1400,6 +1404,13 @@ $("downloadCapsule").addEventListener("click", () => {
   const html = buildPortableCapsuleHtml(state.encryptedEnvelope, state.currentKeyParam);
   downloadFile(`${safeFilename(state.encryptedEnvelope.title)}.capsule.html`, html, "text/html");
   setStatus(createStatus, "Portable capsule downloaded.");
+});
+
+$("fileDownloadCapsule")?.addEventListener("click", () => {
+  if (!state.encryptedEnvelope) return;
+  const html = buildPortableCapsuleHtml(state.encryptedEnvelope, state.currentKeyParam);
+  downloadFile(`${safeFilename(state.encryptedEnvelope.title)}.capsule.html`, html, "text/html");
+  setStatus(fileStatus, "Portable capsule downloaded.");
 });
 
 $("exportPack").addEventListener("click", () => {

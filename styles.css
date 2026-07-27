@@ -25,117 +25,18 @@
   font-family: var(--sans);
 }
 
-/* Keyframe animations for gears */
-@keyframes spin-cw {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes spin-ccw {
-  from {
-    transform: rotate(360deg);
-  }
-  to {
-    transform: rotate(0deg);
-  }
-}
-
+/* Float animation for entrance effects */
 @keyframes float-up {
   0% {
     opacity: 0;
     transform: translateY(10px);
   }
+
   100% {
     opacity: 1;
     transform: translateY(0);
   }
 }
-
-/* Gear container and individual gears */
-.gear-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  z-index: 1;
-  overflow: hidden;
-}
-
-.gear {
-  position: absolute;
-  color: rgba(0, 113, 227, 0.06);
-  opacity: 0.4;
-}
-
-.gear-1 {
-  width: 120px;
-  height: 120px;
-  top: 10%;
-  right: 5%;
-  animation: spin-cw 20s linear infinite;
-}
-
-.gear-2 {
-  width: 80px;
-  height: 80px;
-  bottom: 15%;
-  left: 3%;
-  animation: spin-ccw 15s linear infinite;
-}
-
-.gear-3 {
-  width: 100px;
-  height: 100px;
-  top: 50%;
-  right: 2%;
-  animation: spin-cw 25s linear infinite;
-}
-
-.gear-4 {
-  width: 90px;
-  height: 90px;
-  bottom: 25%;
-  right: 10%;
-  animation: spin-ccw 18s linear infinite;
-}
-
-@media (max-width: 768px) {
-  .gear {
-    opacity: 0.2;
-  }
-  
-  .gear-1 {
-    width: 80px;
-    height: 80px;
-    top: 5%;
-    right: 2%;
-  }
-  
-  .gear-2 {
-    width: 60px;
-    height: 60px;
-    bottom: 10%;
-    left: 1%;
-  }
-  
-  .gear-3 {
-    width: 70px;
-    height: 70px;
-    top: 55%;
-    right: 1%;
-  }
-  
-  .gear-4 {
-    display: none;
-  }
-}
-
 
 * {
   box-sizing: border-box;
@@ -156,7 +57,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
   padding-bottom: env(safe-area-inset-bottom);
-  position: relative;
 }
 
 button,
@@ -184,7 +84,7 @@ a {
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 25;
+  z-index: 20;
   height: 48px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   background: rgba(251, 251, 253, 0.8);
@@ -258,8 +158,6 @@ a {
   width: min(1040px, calc(100% - 48px));
   margin: 0 auto;
   padding: var(--space-5) 0 96px;
-  position: relative;
-  z-index: 2;
 }
 
 .screen.is-hidden {
@@ -332,10 +230,21 @@ a {
   animation-fill-mode: both;
 }
 
-.landing-tile:nth-child(1) { animation-delay: 100ms; }
-.landing-tile:nth-child(2) { animation-delay: 150ms; }
-.landing-tile:nth-child(3) { animation-delay: 200ms; }
-.landing-tile:nth-child(4) { animation-delay: 250ms; }
+.landing-tile:nth-child(1) {
+  animation-delay: 100ms;
+}
+
+.landing-tile:nth-child(2) {
+  animation-delay: 150ms;
+}
+
+.landing-tile:nth-child(3) {
+  animation-delay: 200ms;
+}
+
+.landing-tile:nth-child(4) {
+  animation-delay: 250ms;
+}
 
 @media (hover: hover) and (pointer: fine) {
   .landing-tile:hover {
@@ -388,7 +297,7 @@ a {
   color: var(--ink);
 }
 
-.landing-tile > span:last-child {
+.landing-tile>span:last-child {
   color: var(--muted);
   font-size: 0.9375rem;
   line-height: 1.45;
@@ -462,7 +371,7 @@ a {
   line-height: 1.5;
 }
 
-.file-share-steps li + li {
+.file-share-steps li+li {
   margin-top: 6px;
 }
 
@@ -602,6 +511,7 @@ a {
     opacity: 0;
     transform: translateY(4px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -699,7 +609,7 @@ a {
   background: #f3f3f5;
 }
 
-.advanced summary > span:first-child {
+.advanced summary>span:first-child {
   color: var(--ink);
   font-size: 0.9375rem;
   font-weight: 500;
@@ -857,15 +767,15 @@ textarea {
   transition: transform 200ms ease;
 }
 
-.check input:checked + i {
+.check input:checked+i {
   background: var(--green);
 }
 
-.check input:checked + i::after {
+.check input:checked+i::after {
   transform: translateX(20px);
 }
 
-.check input:focus-visible + i {
+.check input:focus-visible+i {
   outline: 3px solid rgba(0, 113, 227, 0.28);
   outline-offset: 2px;
 }
@@ -1097,7 +1007,7 @@ button:disabled {
   letter-spacing: -0.022em;
 }
 
-.empty-state > p {
+.empty-state>p {
   margin: 0;
   max-width: 340px;
   color: var(--muted);

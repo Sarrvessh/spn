@@ -1,593 +1,539 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#f5f5f7" />
-    <meta name="robots" content="noindex, nofollow" />
-    <meta
-      name="description"
-      content="Prompt Capsule securely shares encrypted AI prompts and files in the browser."
-    />
-    <title>Prompt Capsule</title>
-    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="./favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <!-- Animated Background Gears -->
-    <div class="gear-container">
-      <svg class="gear gear-1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="50" cy="50" r="20" fill="none" stroke="currentColor" stroke-width="2"/>
-        <g stroke="currentColor" stroke-width="2" fill="none">
-          <rect x="48" y="10" width="4" height="15"/>
-          <rect x="48" y="75" width="4" height="15"/>
-          <rect x="10" y="48" width="15" height="4"/>
-          <rect x="75" y="48" width="15" height="4"/>
-          <rect x="17" y="17" width="11" height="11"/>
-          <rect x="72" y="72" width="11" height="11"/>
-          <rect x="72" y="17" width="11" height="11"/>
-          <rect x="17" y="72" width="11" height="11"/>
-        </g>
-      </svg>
-      <svg class="gear gear-2" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="50" cy="50" r="18" fill="none" stroke="currentColor" stroke-width="2"/>
-        <g stroke="currentColor" stroke-width="2" fill="none">
-          <rect x="48" y="12" width="4" height="14"/>
-          <rect x="48" y="74" width="4" height="14"/>
-          <rect x="12" y="48" width="14" height="4"/>
-          <rect x="74" y="48" width="14" height="4"/>
-          <rect x="19" y="19" width="10" height="10"/>
-          <rect x="71" y="71" width="10" height="10"/>
-          <rect x="71" y="19" width="10" height="10"/>
-          <rect x="19" y="71" width="10" height="10"/>
-        </g>
-      </svg>
-      <svg class="gear gear-3" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="50" cy="50" r="22" fill="none" stroke="currentColor" stroke-width="2"/>
-        <g stroke="currentColor" stroke-width="2" fill="none">
-          <rect x="48" y="8" width="4" height="16"/>
-          <rect x="48" y="76" width="4" height="16"/>
-          <rect x="8" y="48" width="16" height="4"/>
-          <rect x="76" y="48" width="16" height="4"/>
-          <rect x="15" y="15" width="12" height="12"/>
-          <rect x="73" y="73" width="12" height="12"/>
-          <rect x="73" y="15" width="12" height="12"/>
-          <rect x="15" y="73" width="12" height="12"/>
-        </g>
-      </svg>
-      <svg class="gear gear-4" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="50" cy="50" r="19" fill="none" stroke="currentColor" stroke-width="2"/>
-        <g stroke="currentColor" stroke-width="2" fill="none">
-          <rect x="48" y="11" width="4" height="15"/>
-          <rect x="48" y="74" width="4" height="15"/>
-          <rect x="11" y="48" width="15" height="4"/>
-          <rect x="74" y="48" width="15" height="4"/>
-          <rect x="18" y="18" width="11" height="11"/>
-          <rect x="71" y="71" width="11" height="11"/>
-          <rect x="71" y="18" width="11" height="11"/>
-          <rect x="18" y="71" width="11" height="11"/>
-        </g>
-      </svg>
-    </div>
 
-    <header class="topbar">
-      <nav class="nav-inner" aria-label="Main">
-        <div class="nav-links" aria-label="Sections">
-          <button type="button" data-screen="home" class="nav-button">Home</button>
-          <button type="button" data-screen="prompt" class="nav-button">Prompt</button>
-          <button type="button" data-screen="file" class="nav-button">Files</button>
-          <button type="button" data-screen="receive" class="nav-button">Receive</button>
-        </div>
-      </nav>
-    </header>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f5f5f7" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="description" content="Prompt Capsule securely shares encrypted AI prompts and files in the browser." />
+  <title>Prompt Capsule</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
 
-    <main class="shell">
-      <section id="homeScreen" class="screen">
-        <div class="hero landing-hero" aria-labelledby="app-title">
-          <h1 id="app-title">Capsule</h1>
-          <p class="hero-sub">Share prompts or files. Privately.</p>
-        </div>
-
-        <section class="landing-tiles" aria-label="Get started">
-          <button class="landing-tile" type="button" data-screen="prompt">
-            <span class="landing-tile-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 6.5h16M4 12h16M4 17.5h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-              </svg>
-            </span>
-            <strong>Prompt</strong>
-            <span>Encrypt a reproducible AI prompt into a private link.</span>
-          </button>
-          <button class="landing-tile" type="button" data-screen="file">
-            <span class="landing-tile-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path
-                  d="M7 3.75h6.5L17.25 7.5V18.5a1.75 1.75 0 0 1-1.75 1.75H7A1.75 1.75 0 0 1 5.25 18.5V5.5A1.75 1.75 0 0 1 7 3.75Z"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linejoin="round"
-                />
-                <path d="M13.25 3.75V7.5h3.75" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
-              </svg>
-            </span>
-            <strong>Files</strong>
-            <span>Send encrypted files. No account required.</span>
-          </button>
-        </section>
-
-        <p class="landing-secondary">
-          <button class="text-button" type="button" data-screen="receive">Open a capsule</button>
-        </p>
-      </section>
-
-      <section id="promptScreen" class="screen is-hidden">
-        <section class="workspace-header" aria-label="Prompt workspace">
-          <div class="workspace-heading">
-            <button class="text-button back-home" type="button" data-screen="home">Home</button>
-            <h2>Prompt</h2>
-          </div>
-        </section>
-
-        <section id="createPanel" class="workspace" aria-labelledby="create-title">
-          <form id="capsuleForm" class="editor">
-            <div class="band">
-              <div class="section-heading">
-                <p>Capsule</p>
-                <h2 id="create-title">Details</h2>
-              </div>
-              <div class="grid two">
-                <label>
-                  <span>Title</span>
-                  <input id="title" name="title" required placeholder="Blog Generator" />
-                </label>
-                <label>
-                  <span>Label</span>
-                  <input id="label" name="label" placeholder="prod" value="prod" />
-                </label>
-                <label>
-                  <span>Model</span>
-                  <input id="model" name="model" placeholder="GPT-5" />
-                </label>
-                <label>
-                  <span>Tags</span>
-                  <input id="tags" name="tags" placeholder="seo, writing, internal" />
-                </label>
-              </div>
-            </div>
-
-            <div class="band">
-              <div class="section-heading">
-                <p>Prompt</p>
-                <h2>Content</h2>
-              </div>
-              <label>
-                <span>User Prompt</span>
-                <textarea id="userPrompt" name="userPrompt" required rows="7" placeholder="Write a clear product launch article about {{topic}}."></textarea>
-              </label>
-              <label>
-                <span>System Prompt</span>
-                <textarea id="systemPrompt" name="systemPrompt" rows="4" placeholder="You are a precise, concise technical writer."></textarea>
-              </label>
-            </div>
-
-            <details class="advanced">
-              <summary>
-                <span>More options</span>
-                <span class="advanced-hint">Temperature, variables, notes</span>
-              </summary>
-              <div class="advanced-body">
-                <div class="grid two compact">
-                  <label>
-                    <span>Temperature</span>
-                    <input id="temperature" name="temperature" type="number" min="0" max="2" step="0.1" placeholder="0.4" />
-                  </label>
-                  <label>
-                    <span>Top P</span>
-                    <input id="topP" name="topP" type="number" min="0" max="1" step="0.05" placeholder="1" />
-                  </label>
-                </div>
-                <label>
-                  <span>Variables</span>
-                  <textarea id="variables" name="variables" rows="4" placeholder='{"topic":"Artificial Intelligence"}'></textarea>
-                </label>
-                <label>
-                  <span>Expected Output</span>
-                  <textarea id="expectedOutput" name="expectedOutput" rows="4" placeholder="A structured article with headline, intro, and sections."></textarea>
-                </label>
-                <label>
-                  <span>Notes</span>
-                  <textarea id="notes" name="notes" rows="3" placeholder="Produces SEO-friendly articles."></textarea>
-                </label>
-              </div>
-            </details>
-
-            <div class="band">
-              <div class="section-heading">
-                <p>Security</p>
-                <h2>Sharing controls</h2>
-              </div>
-              <div class="guards">
-                <label class="check">
-                  <input id="burnAfterRead" type="checkbox" />
-                  <i aria-hidden="true"></i>
-                  <span>
-                    <strong>Burn after read</strong>
-                    <small>Destroy the sender copy after first view</small>
-                  </span>
-                </label>
-                <label class="check">
-                  <input id="passwordProtect" type="checkbox" />
-                  <i aria-hidden="true"></i>
-                  <span>
-                    <strong>Password protect</strong>
-                    <small>Derive a key via PBKDF2</small>
-                  </span>
-                </label>
-                <label class="check">
-                  <input id="autoExpiry" type="checkbox" checked />
-                  <i aria-hidden="true"></i>
-                  <span>
-                    <strong>Auto-expiry</strong>
-                    <small>Invalidate after a time limit</small>
-                  </span>
-                </label>
-                <label class="check">
-                  <input id="scheduledUnlock" type="checkbox" />
-                  <i aria-hidden="true"></i>
-                  <span>
-                    <strong>Scheduled unlock</strong>
-                    <small>Keep sealed until a future time</small>
-                  </span>
-                </label>
-              </div>
-              <div id="securityOptions" class="grid two security-options">
-                <label id="passwordField" class="is-hidden">
-                  <span>Password</span>
-                  <input id="password" type="password" autocomplete="new-password" placeholder="Required to open" />
-                </label>
-                <label id="expiryField">
-                  <span>Expires In</span>
-                  <select id="expiresIn">
-                    <option value="3600000">1 Hour</option>
-                    <option value="86400000" selected>24 Hours</option>
-                    <option value="604800000">7 Days</option>
-                    <option value="2592000000">30 Days</option>
-                    <option value="never">Never</option>
-                  </select>
-                </label>
-                <label id="unlockField" class="is-hidden">
-                  <span>Unlock After</span>
-                  <input id="unlockAt" type="datetime-local" />
-                </label>
-              </div>
-            </div>
-
-            <div class="actions">
-              <button class="primary" type="submit">Create Capsule</button>
-              <button id="resetCreate" class="secondary" type="button">Reset</button>
-            </div>
-          </form>
-
-          <aside class="result" aria-live="polite">
-            <div class="section-heading">
-              <p>Share</p>
-              <h2>Your link</h2>
-            </div>
-            <p class="result-lead">Your encrypted link will appear here.</p>
-            <div class="link-summary">
-              <span>#data</span>
-              <span id="keySummary">#key when available</span>
-            </div>
-            <textarea id="shareLink" readonly rows="6" placeholder="Create a capsule to generate a share link."></textarea>
-            <div class="receipt-meta">
-              <span id="linkSize">0 characters</span>
-              <span id="linkWarning"></span>
-              <code id="createSeal" class="seal-chip" title="Integrity seal">—</code>
-            </div>
-            <div class="button-row">
-              <button id="copyLink" class="primary" type="button" disabled>Copy Link</button>
-            </div>
-            <div class="button-row secondary-actions">
-              <button id="downloadCapsule" class="secondary" type="button" disabled>Download Capsule</button>
-              <button id="exportPack" class="secondary" type="button">Export Pack</button>
-            </div>
-            <p class="result-hint" id="resultHint">Portable files work offline and in email.</p>
-            <p id="createStatus" class="status"></p>
-          </aside>
-        </section>
-      </section>
-
-      <section id="fileScreen" class="screen is-hidden">
-        <section class="workspace-header" aria-label="File workspace">
-          <div class="workspace-heading">
-            <button class="text-button back-home" type="button" data-screen="home">Home</button>
-            <h2>Files</h2>
-          </div>
-        </section>
-
-        <section id="filePanel" class="workspace" aria-labelledby="file-title">
-          <form id="fileForm" class="editor">
-            <div class="band">
-              <div class="section-heading">
-                <p>Drop</p>
-                <h2 id="file-title">Encrypted files</h2>
-              </div>
-              <div class="grid two">
-                <label>
-                  <span>Name</span>
-                  <input id="fileTitle" name="fileTitle" placeholder="Design assets" />
-                </label>
-                <label>
-                  <span>Label</span>
-                  <input id="fileLabel" name="fileLabel" placeholder="prod" value="prod" />
-                </label>
-              </div>
-            </div>
-
-            <div class="band">
-              <div class="section-heading">
-                <p>Files</p>
-                <h2>Attach</h2>
-              </div>
-              <p class="attach-hint">Up to 5 files · 2 MB each · share via Download Capsule</p>
-              <label class="drop-zone" id="dropZone">
-                <span class="drop-zone-title">Drop files here or browse</span>
-                <span class="drop-zone-sub">Images, PDF, txt, md, json, csv, zip</span>
-                <input
-                  id="attachmentInput"
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf,.txt,.md,.json,.csv,.zip,application/pdf,application/json,application/zip,text/plain,text/markdown,text/csv"
-                />
-              </label>
-              <ul id="attachmentList" class="attach-list" aria-live="polite"></ul>
-              <p id="attachStatus" class="status attach-status"></p>
-            </div>
-
-            <div class="band">
-              <div class="section-heading">
-                <p>Security</p>
-                <h2>Sharing controls</h2>
-              </div>
-              <div class="guards">
-                <label class="check">
-                  <input id="fileBurnAfterRead" type="checkbox" />
-                  <i aria-hidden="true"></i>
-                  <span>
-                    <strong>Burn after read</strong>
-                    <small>Destroy the sender copy after first view</small>
-                  </span>
-                </label>
-                <label class="check">
-                  <input id="filePasswordProtect" type="checkbox" />
-                  <i aria-hidden="true"></i>
-                  <span>
-                    <strong>Password protect</strong>
-                    <small>Derive a key via PBKDF2</small>
-                  </span>
-                </label>
-                <label class="check">
-                  <input id="fileAutoExpiry" type="checkbox" checked />
-                  <i aria-hidden="true"></i>
-                  <span>
-                    <strong>Auto-expiry</strong>
-                    <small>Invalidate after a time limit</small>
-                  </span>
-                </label>
-                <label class="check">
-                  <input id="fileScheduledUnlock" type="checkbox" />
-                  <i aria-hidden="true"></i>
-                  <span>
-                    <strong>Scheduled unlock</strong>
-                    <small>Keep sealed until a future time</small>
-                  </span>
-                </label>
-              </div>
-              <div class="grid two security-options">
-                <label id="filePasswordField" class="is-hidden">
-                  <span>Password</span>
-                  <input id="filePassword" type="password" autocomplete="new-password" placeholder="Required to open" />
-                </label>
-                <label id="fileExpiryField">
-                  <span>Expires In</span>
-                  <select id="fileExpiresIn">
-                    <option value="3600000">1 Hour</option>
-                    <option value="86400000" selected>24 Hours</option>
-                    <option value="604800000">7 Days</option>
-                    <option value="2592000000">30 Days</option>
-                    <option value="never">Never</option>
-                  </select>
-                </label>
-                <label id="fileUnlockField" class="is-hidden">
-                  <span>Unlock After</span>
-                  <input id="fileUnlockAt" type="datetime-local" />
-                </label>
-              </div>
-            </div>
-
-            <div class="actions">
-              <button class="primary" type="submit">Create File Capsule</button>
-              <button id="resetFile" class="secondary" type="button">Reset</button>
-            </div>
-          </form>
-
-          <aside class="result file-result" aria-live="polite">
-            <div class="section-heading">
-              <p>Share</p>
-              <h2>Your drop</h2>
-            </div>
-            <p class="result-lead">Encrypted files live in the portable capsule — not in the link.</p>
-            <ol class="file-share-steps">
-              <li>Download the <strong>.capsule.html</strong> file</li>
-              <li>Send that file to your recipient</li>
-              <li>Optionally share the short receive link below</li>
-            </ol>
-            <label class="short-link-field">
-              <span>Receive link</span>
-              <input id="fileShareLink" type="text" readonly placeholder="Create a file capsule to get a short receive link." />
-            </label>
-            <div class="receipt-meta">
-              <span id="fileLinkSize">Short link</span>
-              <span id="fileLinkWarning"></span>
-              <code id="fileCreateSeal" class="seal-chip" title="Integrity seal">—</code>
-            </div>
-            <div class="button-row">
-              <button id="fileDownloadCapsule" class="primary" type="button" disabled>Download Capsule</button>
-            </div>
-            <div class="button-row secondary-actions">
-              <button id="fileCopyLink" class="secondary" type="button" disabled>Copy Receive Link</button>
-            </div>
-            <p class="result-hint" id="fileResultHint">File data is not put in the link. Send the downloaded capsule.</p>
-            <p id="fileStatus" class="status"></p>
-          </aside>
-        </section>
-      </section>
-
-      <section id="receiveScreen" class="screen is-hidden">
-        <section class="workspace-header" aria-label="Receive workspace">
-          <div class="workspace-heading">
-            <button class="text-button back-home" type="button" data-screen="home">Home</button>
-            <h2>Receive</h2>
-          </div>
-        </section>
-
-        <section id="receivePanel" class="workspace" aria-labelledby="receive-title">
-          <div class="viewer">
-            <div id="receiveEmpty" class="empty-state">
-              <span class="empty-icon" aria-hidden="true"></span>
-              <h2 id="receive-title">Open a capsule</h2>
-              <p id="receiveEmptyCopy">Open a prompt or file capsule. Decryption stays in your browser.</p>
-              <div class="empty-actions">
-                <label class="file-button">
-                  Open Capsule file
-                  <input id="openCapsuleFile" type="file" accept=".html,.json,.enc,text/html,application/json" />
-                </label>
-                <label class="file-button secondary-file">
-                  Import Pack
-                  <input id="importPackFile" type="file" accept=".json,application/json" />
-                </label>
-              </div>
-              <div id="packList" class="pack-list is-hidden"></div>
-            </div>
-
-            <div class="band receive-controls">
-              <div id="passwordUnlock" class="unlock is-hidden">
-                <label>
-                  <span>Password</span>
-                  <input id="receivePassword" type="password" autocomplete="current-password" placeholder="Enter password" />
-                </label>
-                <button id="unlockButton" class="primary" type="button">Unlock</button>
-              </div>
-              <p id="receiveStatus" class="status"></p>
-            </div>
-
-            <article id="capsuleView" class="capsule is-hidden">
-              <header>
-                <div>
-                  <p id="viewLabel" class="eyebrow">Capsule</p>
-                  <h2 id="viewTitle"></h2>
-                </div>
-                <div id="viewTags" class="tags"></div>
-              </header>
-              <p class="view-seal">
-                <code id="viewSeal" class="seal-chip" title="Integrity seal">—</code>
-              </p>
-              <dl id="viewMeta" class="meta">
-                <div>
-                  <dt>Model</dt>
-                  <dd id="viewModel">-</dd>
-                </div>
-                <div>
-                  <dt>Temperature</dt>
-                  <dd id="viewTemperature">-</dd>
-                </div>
-                <div>
-                  <dt>Top P</dt>
-                  <dd id="viewTopP">-</dd>
-                </div>
-                <div>
-                  <dt>Expires</dt>
-                  <dd id="viewExpires">-</dd>
-                </div>
-                <div>
-                  <dt>Unlocks</dt>
-                  <dd id="viewUnlocks">-</dd>
-                </div>
-              </dl>
-              <div id="promptReadout" class="readout">
-                <section id="userPromptBlock">
-                  <h3>User Prompt</h3>
-                  <pre id="viewUserPrompt"></pre>
-                </section>
-                <section id="systemBlock">
-                  <h3>System Prompt</h3>
-                  <pre id="viewSystemPrompt"></pre>
-                </section>
-                <section id="variablesBlock">
-                  <h3>Variables</h3>
-                  <pre id="viewVariables"></pre>
-                </section>
-                <section id="expectedBlock">
-                  <h3>Expected Output</h3>
-                  <pre id="viewExpected"></pre>
-                </section>
-                <section id="notesBlock">
-                  <h3>Notes</h3>
-                  <pre id="viewNotes"></pre>
-                </section>
-              </div>
-              <section id="attachmentsBlock" class="attachments-block is-hidden">
-                <h3>Attachments</h3>
-                <ul id="viewAttachments" class="attach-download-list"></ul>
-              </section>
-              <div id="promptActions" class="button-row">
-                <button id="copyPrompt" class="secondary" type="button">Copy Prompt</button>
-                <button id="copySystem" class="secondary" type="button">Copy System Prompt</button>
-                <button id="copyJson" class="secondary" type="button">Copy JSON</button>
-                <button id="downloadJson" class="secondary" type="button">Download JSON</button>
-              </div>
-            </article>
-          </div>
-        </section>
-      </section>
-    </main>
-
-    <nav class="mobile-nav" aria-label="Primary">
-      <button type="button" class="mobile-nav-item is-active" data-screen="home" aria-current="page">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M4.5 10.5 12 4.5l7.5 6V19a1.5 1.5 0 0 1-1.5 1.5h-3.75v-5.25h-4.5V20.5H6A1.5 1.5 0 0 1 4.5 19v-8.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
-        </svg>
-        <span>Home</span>
-      </button>
-      <button type="button" class="mobile-nav-item" data-screen="prompt">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M5 7h14M5 12h14M5 17h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-        </svg>
-        <span>Prompt</span>
-      </button>
-      <button type="button" class="mobile-nav-item" data-screen="file">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M7 3.75h6.5L17.25 7.5V18.5A1.75 1.75 0 0 1 15.5 20.25H7A1.75 1.75 0 0 1 5.25 18.5V5.5A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
-          <path d="M13.25 3.75V7.5h3.75" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
-        </svg>
-        <span>Files</span>
-      </button>
-      <button type="button" class="mobile-nav-item" data-screen="receive">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M12 4.5v10M8.5 11 12 14.5 15.5 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M5 18.5h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-        </svg>
-        <span>Receive</span>
-      </button>
+<body>
+  <header class="topbar">
+    <nav class="nav-inner" aria-label="Main">
+      <div class="nav-links" aria-label="Sections">
+        <button type="button" data-screen="home" class="nav-button">Home</button>
+        <button type="button" data-screen="prompt" class="nav-button">Prompt</button>
+        <button type="button" data-screen="file" class="nav-button">Files</button>
+        <button type="button" data-screen="receive" class="nav-button">Receive</button>
+      </div>
     </nav>
+  </header>
 
-    <script src="./app.js" defer></script>
-  </body>
+  <main class="shell">
+    <section id="homeScreen" class="screen">
+      <div class="hero landing-hero" aria-labelledby="app-title">
+        <h1 id="app-title">Capsule</h1>
+        <p class="hero-sub">Share prompts or files. Privately.</p>
+      </div>
+
+      <section class="landing-tiles" aria-label="Get started">
+        <button class="landing-tile" type="button" data-screen="prompt">
+          <span class="landing-tile-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 6.5h16M4 12h16M4 17.5h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </span>
+          <strong>Prompt</strong>
+          <span>Encrypt a reproducible AI prompt into a private link.</span>
+        </button>
+        <button class="landing-tile" type="button" data-screen="file">
+          <span class="landing-tile-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M7 3.75h6.5L17.25 7.5V18.5a1.75 1.75 0 0 1-1.75 1.75H7A1.75 1.75 0 0 1 5.25 18.5V5.5A1.75 1.75 0 0 1 7 3.75Z"
+                stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+              <path d="M13.25 3.75V7.5h3.75" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <strong>Files</strong>
+          <span>Send encrypted files. No account required.</span>
+        </button>
+      </section>
+
+      <p class="landing-secondary">
+        <button class="text-button" type="button" data-screen="receive">Open a capsule</button>
+      </p>
+    </section>
+
+    <section id="promptScreen" class="screen is-hidden">
+      <section class="workspace-header" aria-label="Prompt workspace">
+        <div class="workspace-heading">
+          <button class="text-button back-home" type="button" data-screen="home">Home</button>
+          <h2>Prompt</h2>
+        </div>
+      </section>
+
+      <section id="createPanel" class="workspace" aria-labelledby="create-title">
+        <form id="capsuleForm" class="editor">
+          <div class="band">
+            <div class="section-heading">
+              <p>Capsule</p>
+              <h2 id="create-title">Details</h2>
+            </div>
+            <div class="grid two">
+              <label>
+                <span>Title</span>
+                <input id="title" name="title" required placeholder="Blog Generator" />
+              </label>
+              <label>
+                <span>Label</span>
+                <input id="label" name="label" placeholder="prod" value="prod" />
+              </label>
+              <label>
+                <span>Model</span>
+                <input id="model" name="model" placeholder="GPT-5" />
+              </label>
+              <label>
+                <span>Tags</span>
+                <input id="tags" name="tags" placeholder="seo, writing, internal" />
+              </label>
+            </div>
+          </div>
+
+          <div class="band">
+            <div class="section-heading">
+              <p>Prompt</p>
+              <h2>Content</h2>
+            </div>
+            <label>
+              <span>User Prompt</span>
+              <textarea id="userPrompt" name="userPrompt" required rows="7"
+                placeholder="Write a clear product launch article about {{topic}}."></textarea>
+            </label>
+            <label>
+              <span>System Prompt</span>
+              <textarea id="systemPrompt" name="systemPrompt" rows="4"
+                placeholder="You are a precise, concise technical writer."></textarea>
+            </label>
+          </div>
+
+          <details class="advanced">
+            <summary>
+              <span>More options</span>
+              <span class="advanced-hint">Temperature, variables, notes</span>
+            </summary>
+            <div class="advanced-body">
+              <div class="grid two compact">
+                <label>
+                  <span>Temperature</span>
+                  <input id="temperature" name="temperature" type="number" min="0" max="2" step="0.1"
+                    placeholder="0.4" />
+                </label>
+                <label>
+                  <span>Top P</span>
+                  <input id="topP" name="topP" type="number" min="0" max="1" step="0.05" placeholder="1" />
+                </label>
+              </div>
+              <label>
+                <span>Variables</span>
+                <textarea id="variables" name="variables" rows="4"
+                  placeholder='{"topic":"Artificial Intelligence"}'></textarea>
+              </label>
+              <label>
+                <span>Expected Output</span>
+                <textarea id="expectedOutput" name="expectedOutput" rows="4"
+                  placeholder="A structured article with headline, intro, and sections."></textarea>
+              </label>
+              <label>
+                <span>Notes</span>
+                <textarea id="notes" name="notes" rows="3" placeholder="Produces SEO-friendly articles."></textarea>
+              </label>
+            </div>
+          </details>
+
+          <div class="band">
+            <div class="section-heading">
+              <p>Security</p>
+              <h2>Sharing controls</h2>
+            </div>
+            <div class="guards">
+              <label class="check">
+                <input id="burnAfterRead" type="checkbox" />
+                <i aria-hidden="true"></i>
+                <span>
+                  <strong>Burn after read</strong>
+                  <small>Destroy the sender copy after first view</small>
+                </span>
+              </label>
+              <label class="check">
+                <input id="passwordProtect" type="checkbox" />
+                <i aria-hidden="true"></i>
+                <span>
+                  <strong>Password protect</strong>
+                  <small>Derive a key via PBKDF2</small>
+                </span>
+              </label>
+              <label class="check">
+                <input id="autoExpiry" type="checkbox" checked />
+                <i aria-hidden="true"></i>
+                <span>
+                  <strong>Auto-expiry</strong>
+                  <small>Invalidate after a time limit</small>
+                </span>
+              </label>
+              <label class="check">
+                <input id="scheduledUnlock" type="checkbox" />
+                <i aria-hidden="true"></i>
+                <span>
+                  <strong>Scheduled unlock</strong>
+                  <small>Keep sealed until a future time</small>
+                </span>
+              </label>
+            </div>
+            <div id="securityOptions" class="grid two security-options">
+              <label id="passwordField" class="is-hidden">
+                <span>Password</span>
+                <input id="password" type="password" autocomplete="new-password" placeholder="Required to open" />
+              </label>
+              <label id="expiryField">
+                <span>Expires In</span>
+                <select id="expiresIn">
+                  <option value="3600000">1 Hour</option>
+                  <option value="86400000" selected>24 Hours</option>
+                  <option value="604800000">7 Days</option>
+                  <option value="2592000000">30 Days</option>
+                  <option value="never">Never</option>
+                </select>
+              </label>
+              <label id="unlockField" class="is-hidden">
+                <span>Unlock After</span>
+                <input id="unlockAt" type="datetime-local" />
+              </label>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="primary" type="submit">Create Capsule</button>
+            <button id="resetCreate" class="secondary" type="button">Reset</button>
+          </div>
+        </form>
+
+        <aside class="result" aria-live="polite">
+          <div class="section-heading">
+            <p>Share</p>
+            <h2>Your link</h2>
+          </div>
+          <p class="result-lead">Your encrypted link will appear here.</p>
+          <div class="link-summary">
+            <span>#data</span>
+            <span id="keySummary">#key when available</span>
+          </div>
+          <textarea id="shareLink" readonly rows="6"
+            placeholder="Create a capsule to generate a share link."></textarea>
+          <div class="receipt-meta">
+            <span id="linkSize">0 characters</span>
+            <span id="linkWarning"></span>
+            <code id="createSeal" class="seal-chip" title="Integrity seal">—</code>
+          </div>
+          <div class="button-row">
+            <button id="copyLink" class="primary" type="button" disabled>Copy Link</button>
+          </div>
+          <div class="button-row secondary-actions">
+            <button id="downloadCapsule" class="secondary" type="button" disabled>Download Capsule</button>
+            <button id="exportPack" class="secondary" type="button">Export Pack</button>
+          </div>
+          <p class="result-hint" id="resultHint">Portable files work offline and in email.</p>
+          <p id="createStatus" class="status"></p>
+        </aside>
+      </section>
+    </section>
+
+    <section id="fileScreen" class="screen is-hidden">
+      <section class="workspace-header" aria-label="File workspace">
+        <div class="workspace-heading">
+          <button class="text-button back-home" type="button" data-screen="home">Home</button>
+          <h2>Files</h2>
+        </div>
+      </section>
+
+      <section id="filePanel" class="workspace" aria-labelledby="file-title">
+        <form id="fileForm" class="editor">
+          <div class="band">
+            <div class="section-heading">
+              <p>Drop</p>
+              <h2 id="file-title">Encrypted files</h2>
+            </div>
+            <div class="grid two">
+              <label>
+                <span>Name</span>
+                <input id="fileTitle" name="fileTitle" placeholder="Design assets" />
+              </label>
+              <label>
+                <span>Label</span>
+                <input id="fileLabel" name="fileLabel" placeholder="prod" value="prod" />
+              </label>
+            </div>
+          </div>
+
+          <div class="band">
+            <div class="section-heading">
+              <p>Files</p>
+              <h2>Attach</h2>
+            </div>
+            <p class="attach-hint">Up to 5 files · 2 MB each · share via Download Capsule</p>
+            <label class="drop-zone" id="dropZone">
+              <span class="drop-zone-title">Drop files here or browse</span>
+              <span class="drop-zone-sub">Images, PDF, txt, md, json, csv, zip</span>
+              <input id="attachmentInput" type="file" multiple
+                accept="image/*,.pdf,.txt,.md,.json,.csv,.zip,application/pdf,application/json,application/zip,text/plain,text/markdown,text/csv" />
+            </label>
+            <ul id="attachmentList" class="attach-list" aria-live="polite"></ul>
+            <p id="attachStatus" class="status attach-status"></p>
+          </div>
+
+          <div class="band">
+            <div class="section-heading">
+              <p>Security</p>
+              <h2>Sharing controls</h2>
+            </div>
+            <div class="guards">
+              <label class="check">
+                <input id="fileBurnAfterRead" type="checkbox" />
+                <i aria-hidden="true"></i>
+                <span>
+                  <strong>Burn after read</strong>
+                  <small>Destroy the sender copy after first view</small>
+                </span>
+              </label>
+              <label class="check">
+                <input id="filePasswordProtect" type="checkbox" />
+                <i aria-hidden="true"></i>
+                <span>
+                  <strong>Password protect</strong>
+                  <small>Derive a key via PBKDF2</small>
+                </span>
+              </label>
+              <label class="check">
+                <input id="fileAutoExpiry" type="checkbox" checked />
+                <i aria-hidden="true"></i>
+                <span>
+                  <strong>Auto-expiry</strong>
+                  <small>Invalidate after a time limit</small>
+                </span>
+              </label>
+              <label class="check">
+                <input id="fileScheduledUnlock" type="checkbox" />
+                <i aria-hidden="true"></i>
+                <span>
+                  <strong>Scheduled unlock</strong>
+                  <small>Keep sealed until a future time</small>
+                </span>
+              </label>
+            </div>
+            <div class="grid two security-options">
+              <label id="filePasswordField" class="is-hidden">
+                <span>Password</span>
+                <input id="filePassword" type="password" autocomplete="new-password" placeholder="Required to open" />
+              </label>
+              <label id="fileExpiryField">
+                <span>Expires In</span>
+                <select id="fileExpiresIn">
+                  <option value="3600000">1 Hour</option>
+                  <option value="86400000" selected>24 Hours</option>
+                  <option value="604800000">7 Days</option>
+                  <option value="2592000000">30 Days</option>
+                  <option value="never">Never</option>
+                </select>
+              </label>
+              <label id="fileUnlockField" class="is-hidden">
+                <span>Unlock After</span>
+                <input id="fileUnlockAt" type="datetime-local" />
+              </label>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="primary" type="submit">Create File Capsule</button>
+            <button id="resetFile" class="secondary" type="button">Reset</button>
+          </div>
+        </form>
+
+        <aside class="result file-result" aria-live="polite">
+          <div class="section-heading">
+            <p>Share</p>
+            <h2>Your drop</h2>
+          </div>
+          <p class="result-lead">Encrypted files live in the portable capsule — not in the link.</p>
+          <ol class="file-share-steps">
+            <li>Download the <strong>.capsule.html</strong> file</li>
+            <li>Send that file to your recipient</li>
+            <li>Optionally share the short receive link below</li>
+          </ol>
+          <label class="short-link-field">
+            <span>Receive link</span>
+            <input id="fileShareLink" type="text" readonly
+              placeholder="Create a file capsule to get a short receive link." />
+          </label>
+          <div class="receipt-meta">
+            <span id="fileLinkSize">Short link</span>
+            <span id="fileLinkWarning"></span>
+            <code id="fileCreateSeal" class="seal-chip" title="Integrity seal">—</code>
+          </div>
+          <div class="button-row">
+            <button id="fileDownloadCapsule" class="primary" type="button" disabled>Download Capsule</button>
+          </div>
+          <div class="button-row secondary-actions">
+            <button id="fileCopyLink" class="secondary" type="button" disabled>Copy Receive Link</button>
+          </div>
+          <p class="result-hint" id="fileResultHint">File data is not put in the link. Send the downloaded capsule.</p>
+          <p id="fileStatus" class="status"></p>
+        </aside>
+      </section>
+    </section>
+
+    <section id="receiveScreen" class="screen is-hidden">
+      <section class="workspace-header" aria-label="Receive workspace">
+        <div class="workspace-heading">
+          <button class="text-button back-home" type="button" data-screen="home">Home</button>
+          <h2>Receive</h2>
+        </div>
+      </section>
+
+      <section id="receivePanel" class="workspace" aria-labelledby="receive-title">
+        <div class="viewer">
+          <div id="receiveEmpty" class="empty-state">
+            <span class="empty-icon" aria-hidden="true"></span>
+            <h2 id="receive-title">Open a capsule</h2>
+            <p id="receiveEmptyCopy">Open a prompt or file capsule. Decryption stays in your browser.</p>
+            <div class="empty-actions">
+              <label class="file-button">
+                Open Capsule file
+                <input id="openCapsuleFile" type="file" accept=".html,.json,.enc,text/html,application/json" />
+              </label>
+              <label class="file-button secondary-file">
+                Import Pack
+                <input id="importPackFile" type="file" accept=".json,application/json" />
+              </label>
+            </div>
+            <div id="packList" class="pack-list is-hidden"></div>
+          </div>
+
+          <div class="band receive-controls">
+            <div id="passwordUnlock" class="unlock is-hidden">
+              <label>
+                <span>Password</span>
+                <input id="receivePassword" type="password" autocomplete="current-password"
+                  placeholder="Enter password" />
+              </label>
+              <button id="unlockButton" class="primary" type="button">Unlock</button>
+            </div>
+            <p id="receiveStatus" class="status"></p>
+          </div>
+
+          <article id="capsuleView" class="capsule is-hidden">
+            <header>
+              <div>
+                <p id="viewLabel" class="eyebrow">Capsule</p>
+                <h2 id="viewTitle"></h2>
+              </div>
+              <div id="viewTags" class="tags"></div>
+            </header>
+            <p class="view-seal">
+              <code id="viewSeal" class="seal-chip" title="Integrity seal">—</code>
+            </p>
+            <dl id="viewMeta" class="meta">
+              <div>
+                <dt>Model</dt>
+                <dd id="viewModel">-</dd>
+              </div>
+              <div>
+                <dt>Temperature</dt>
+                <dd id="viewTemperature">-</dd>
+              </div>
+              <div>
+                <dt>Top P</dt>
+                <dd id="viewTopP">-</dd>
+              </div>
+              <div>
+                <dt>Expires</dt>
+                <dd id="viewExpires">-</dd>
+              </div>
+              <div>
+                <dt>Unlocks</dt>
+                <dd id="viewUnlocks">-</dd>
+              </div>
+            </dl>
+            <div id="promptReadout" class="readout">
+              <section id="userPromptBlock">
+                <h3>User Prompt</h3>
+                <pre id="viewUserPrompt"></pre>
+              </section>
+              <section id="systemBlock">
+                <h3>System Prompt</h3>
+                <pre id="viewSystemPrompt"></pre>
+              </section>
+              <section id="variablesBlock">
+                <h3>Variables</h3>
+                <pre id="viewVariables"></pre>
+              </section>
+              <section id="expectedBlock">
+                <h3>Expected Output</h3>
+                <pre id="viewExpected"></pre>
+              </section>
+              <section id="notesBlock">
+                <h3>Notes</h3>
+                <pre id="viewNotes"></pre>
+              </section>
+            </div>
+            <section id="attachmentsBlock" class="attachments-block is-hidden">
+              <h3>Attachments</h3>
+              <ul id="viewAttachments" class="attach-download-list"></ul>
+            </section>
+            <div id="promptActions" class="button-row">
+              <button id="copyPrompt" class="secondary" type="button">Copy Prompt</button>
+              <button id="copySystem" class="secondary" type="button">Copy System Prompt</button>
+              <button id="copyJson" class="secondary" type="button">Copy JSON</button>
+              <button id="downloadJson" class="secondary" type="button">Download JSON</button>
+            </div>
+          </article>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <nav class="mobile-nav" aria-label="Primary">
+    <button type="button" class="mobile-nav-item is-active" data-screen="home" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4.5 10.5 12 4.5l7.5 6V19a1.5 1.5 0 0 1-1.5 1.5h-3.75v-5.25h-4.5V20.5H6A1.5 1.5 0 0 1 4.5 19v-8.5Z"
+          stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+      </svg>
+      <span>Home</span>
+    </button>
+    <button type="button" class="mobile-nav-item" data-screen="prompt">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M5 7h14M5 12h14M5 17h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      </svg>
+      <span>Prompt</span>
+    </button>
+    <button type="button" class="mobile-nav-item" data-screen="file">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M7 3.75h6.5L17.25 7.5V18.5A1.75 1.75 0 0 1 15.5 20.25H7A1.75 1.75 0 0 1 5.25 18.5V5.5A1.75 1.75 0 0 1 7 3.75Z"
+          stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+        <path d="M13.25 3.75V7.5h3.75" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+      </svg>
+      <span>Files</span>
+    </button>
+    <button type="button" class="mobile-nav-item" data-screen="receive">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 4.5v10M8.5 11 12 14.5 15.5 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+          stroke-linejoin="round" />
+        <path d="M5 18.5h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      </svg>
+      <span>Receive</span>
+    </button>
+  </nav>
+
+  <script src="./app.js" defer></script>
+</body>
+
 </html>

@@ -5,6 +5,8 @@ const PACK_LIMIT = 25;
 const ATTACH_MAX_FILES = 5;
 const ATTACH_MAX_EACH = 2 * 1024 * 1024;
 const ATTACH_MAX_TOTAL = 5 * 1024 * 1024;
+/** Reliable short-link ceiling for photos, PDFs, zip (incompressible data). */
+const ATTACH_SHORT_LINK_SAFE_TOTAL = Math.floor(3.35 * 1024 * 1024);
 const ATTACH_EXT = /\.(jpe?g|png|gif|webp|pdf|txt|md|json|csv|zip)$/i;
 
 const state = {
@@ -60,6 +62,13 @@ const fileLinkWarning = $("fileLinkWarning");
 const fileCreateSeal = $("fileCreateSeal");
 const fileStatus = $("fileStatus");
 const fileResultHint = $("fileResultHint");
+const attachBudget = $("attachBudget");
+const attachCount = $("attachCount");
+const attachTotal = $("attachTotal");
+const attachBudgetFill = $("attachBudgetFill");
+const attachBudgetTrack = $("attachBudgetTrack");
+const attachShareMode = $("attachShareMode");
+const fileCreateNote = $("fileCreateNote");
 
 function bytesToBase64Url(bytes) {
   let binary = "";
@@ -378,6 +387,93 @@ function downloadAttachment(attachment) {
   URL.revokeObjectURL(url);
 }
 
+function getFileShareExpectation(totalBytes, fileCount) {
+  const countLabel = `${fileCount} / ${ATTACH_MAX_FILES} file${fileCount === 1 ? "" : "s"}`;
+  const totalLabel = `${formatBytes(totalBytes)} / ${formatBytes(ATTACH_MAX_TOTAL)}`;
+  const fillPct = Math.min(100, (totalBytes / ATTACH_MAX_TOTAL) * 100);
+
+  if (!fileCount) {
+    return {
+      mode: "idle",
+      budgetClass: "",
+      fillPct: 0,
+      countLabel: `0 / ${ATTACH_MAX_FILES} files`,
+      totalLabel: `0 B / ${formatBytes(ATTACH_MAX_TOTAL)}`,
+      message: "",
+      createNote: "",
+    };
+  }
+
+  if (totalBytes <= ATTACH_SHORT_LINK_SAFE_TOTAL) {
+    return {
+      mode: "short-link",
+      budgetClass: "is-short-link",
+      fillPct,
+      countLabel,
+      totalLabel,
+      message: "Short /c/ link — reliable for photos, PDFs, and zip.",
+      createNote: "",
+    };
+  }
+
+  if (totalBytes <= ATTACH_MAX_TOTAL) {
+    return {
+      mode: "portable",
+      budgetClass: "is-portable",
+      fillPct,
+      countLabel,
+      totalLabel,
+      message: "Over ~3.3 MB for photos & zip — short link may fail. Download Capsule is reliable. Text/code may still work.",
+      createNote: "Download Capsule recommended for photos, PDFs, and zip at this size.",
+    };
+  }
+
+  return {
+    mode: "over-limit",
+    budgetClass: "is-over-limit",
+    fillPct: 100,
+    countLabel,
+    totalLabel,
+    message: "Over the 5 MB total limit.",
+    createNote: "",
+  };
+}
+
+function updateAttachBudget() {
+  const files = state.pendingAttachments;
+  const total = totalAttachmentSize(files);
+  const expectation = getFileShareExpectation(total, files.length);
+
+  if (attachBudget) {
+    attachBudget.classList.toggle("is-hidden", expectation.mode === "idle");
+    attachBudget.classList.remove("is-short-link", "is-portable", "is-over-limit");
+    if (expectation.budgetClass) attachBudget.classList.add(expectation.budgetClass);
+  }
+  if (attachCount) attachCount.textContent = expectation.countLabel;
+  if (attachTotal) attachTotal.textContent = expectation.totalLabel;
+  if (attachBudgetFill) attachBudgetFill.style.width = `${expectation.fillPct}%`;
+  if (attachBudgetTrack) {
+    attachBudgetTrack.setAttribute("aria-valuenow", String(Math.round(expectation.fillPct)));
+    attachBudgetTrack.setAttribute("aria-valuemin", "0");
+    attachBudgetTrack.setAttribute("aria-valuemax", "100");
+  }
+  if (attachShareMode) attachShareMode.textContent = expectation.message;
+  if (fileCreateNote) {
+    fileCreateNote.textContent = expectation.createNote;
+    fileCreateNote.classList.toggle("is-hidden", !expectation.createNote);
+  }
+  if (fileResultPanel) {
+    fileResultPanel.classList.toggle("expects-portable", expectation.mode === "portable");
+  }
+}
+
+function setFileResultMode(mode) {
+  if (!fileResultPanel) return;
+  fileResultPanel.classList.remove("expects-portable", "is-portable-fallback", "has-short-link");
+  if (mode === "portable-fallback") fileResultPanel.classList.add("is-portable-fallback");
+  if (mode === "short-link") fileResultPanel.classList.add("has-short-link");
+}
+
 function totalAttachmentSize(list) {
   return list.reduce((sum, item) => sum + (item.size || 0), 0);
 }
@@ -410,11 +506,11 @@ async function addAttachmentFiles(fileList) {
       continue;
     }
     if (file.size > ATTACH_MAX_EACH) {
-      errors.push(`${file.name}: exceeds 2 MB.`);
+      errors.push(`${file.name} exceeds 2 MB (max per file).`);
       continue;
     }
     if (totalAttachmentSize(next) + file.size > ATTACH_MAX_TOTAL) {
-      errors.push(`Total attachments exceed 5 MB.`);
+      errors.push(`Total exceeds 5 MB (max combined size).`);
       break;
     }
     if (next.some((item) => item.name === file.name && item.size === file.size)) {
@@ -425,6 +521,7 @@ async function addAttachmentFiles(fileList) {
 
   state.pendingAttachments = next;
   renderPendingAttachments();
+  updateAttachBudget();
   if (errors.length) {
     setStatus(attachStatus, errors[0], true);
   } else {
@@ -451,6 +548,7 @@ function renderPendingAttachments() {
     remove.addEventListener("click", () => {
       state.pendingAttachments = state.pendingAttachments.filter((entry) => entry.id !== item.id);
       renderPendingAttachments();
+      updateAttachBudget();
       setStatus(
         attachStatus,
         state.pendingAttachments.length
@@ -1438,14 +1536,16 @@ fileForm?.addEventListener("submit", async (event) => {
     if (fileCreateSeal) fileCreateSeal.textContent = encrypted.envelope.seal || "—";
 
     const fileCount = capsule.attachments.length;
+    const rawTotal = totalAttachmentSize(capsule.attachments);
     try {
       const id = await uploadCapsule(encrypted.envelope);
       fileShareLink.value = buildShortShareUrl(id, encrypted.keyParam);
       $("fileCopyLink").disabled = false;
+      setFileResultMode("short-link");
       updateFileLinkMeter();
       updateResultState();
       if (fileResultHint) {
-        fileResultHint.textContent = `Includes ${fileCount} file(s) in the encrypted short link.`;
+        fileResultHint.textContent = `Short link ready · ${fileCount} file(s) · ${formatBytes(rawTotal)} encrypted on the server.`;
       }
       setStatus(
         fileStatus,
@@ -1457,11 +1557,14 @@ fileForm?.addEventListener("submit", async (event) => {
     } catch (uploadError) {
       fileShareLink.value = buildReceiveOnlyUrl();
       $("fileCopyLink").disabled = false;
+      setFileResultMode("portable-fallback");
       updateFileLinkMeter();
       updateResultState();
       if (fileResultHint) {
         fileResultHint.textContent =
-          "Link storage unavailable or drop too large. Send the downloaded .capsule.html file.";
+          rawTotal > ATTACH_SHORT_LINK_SAFE_TOTAL
+            ? "This drop is too large for a short link. Send the .capsule.html file you download below."
+            : "Link storage unavailable. Send the downloaded .capsule.html file instead.";
       }
       setStatus(
         fileStatus,
@@ -1509,9 +1612,13 @@ $("resetFile")?.addEventListener("click", () => {
   fileShareLink.value = "";
   state.pendingAttachments = [];
   renderPendingAttachments();
+  updateAttachBudget();
   setStatus(attachStatus, "");
   state.currentKeyParam = "";
-  if (fileResultHint) fileResultHint.textContent = "Small drops get a /c/ link. Large drops fall back to Download Capsule.";
+  setFileResultMode("idle");
+  if (fileResultHint) {
+    fileResultHint.textContent = "Up to ~3.3 MB total → short /c/ link. Larger drops use Download Capsule.";
+  }
   $("fileCopyLink").disabled = true;
   $("fileDownloadCapsule").disabled = true;
   if (fileCreateSeal) fileCreateSeal.textContent = "—";
@@ -1662,6 +1769,7 @@ bootApp();
 
 updateLinkMeter();
 updateFileLinkMeter();
+updateAttachBudget();
 updateKeySummary(false);
 updateResultState();
 updateReceiveEmpty();

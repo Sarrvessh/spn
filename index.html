@@ -55,7 +55,7 @@
             </svg>
           </span>
           <strong>Files</strong>
-          <span>Send encrypted files. No account required.</span>
+          <span>Up to 5 files · 2 MB each · short link or capsule</span>
         </button>
       </section>
 
@@ -281,13 +281,23 @@
               <p>Files</p>
               <h2>Attach</h2>
             </div>
-            <p class="attach-hint">Up to 5 files · 2 MB each · short link or Download Capsule</p>
+            <p class="attach-hint">5 files max · 2 MB each · 5 MB total</p>
             <label class="drop-zone" id="dropZone">
               <span class="drop-zone-title">Drop files here or browse</span>
-              <span class="drop-zone-sub">Images, PDF, txt, md, json, csv, zip</span>
+              <span class="drop-zone-sub">Photos, PDF, txt, md, json, csv, zip</span>
               <input id="attachmentInput" type="file" multiple
                 accept="image/*,.pdf,.txt,.md,.json,.csv,.zip,application/pdf,application/json,application/zip,text/plain,text/markdown,text/csv" />
             </label>
+            <div id="attachBudget" class="attach-budget is-hidden" aria-live="polite">
+              <div class="attach-budget-head">
+                <span id="attachCount">0 / 5 files</span>
+                <span id="attachTotal">0 B / 5 MB</span>
+              </div>
+              <div id="attachBudgetTrack" class="attach-budget-track" role="progressbar" aria-label="Total attachment size">
+                <div id="attachBudgetFill" class="attach-budget-fill"></div>
+              </div>
+              <p id="attachShareMode" class="attach-share-mode"></p>
+            </div>
             <ul id="attachmentList" class="attach-list" aria-live="polite"></ul>
             <p id="attachStatus" class="status attach-status"></p>
           </div>
@@ -357,6 +367,7 @@
             <button class="primary" type="submit">Create File Capsule</button>
             <button id="resetFile" class="secondary" type="button">Reset</button>
           </div>
+          <p id="fileCreateNote" class="create-note is-hidden" aria-live="polite"></p>
         </form>
 
         <aside class="result file-result" aria-live="polite">
@@ -364,7 +375,12 @@
             <p>Share</p>
             <h2>Your drop</h2>
           </div>
-          <p class="result-lead">Share with a short link when possible, or download the portable capsule.</p>
+          <p class="result-lead">Short /c/ link up to ~3.3 MB. Larger drops use Download Capsule.</p>
+          <ul class="file-limits" aria-label="File limits">
+            <li><strong>5</strong> files max</li>
+            <li><strong>2 MB</strong> each</li>
+            <li><strong>5 MB</strong> total</li>
+          </ul>
           <label class="short-link-field">
             <span>Share link</span>
             <input id="fileShareLink" type="text" readonly
@@ -376,12 +392,12 @@
             <code id="fileCreateSeal" class="seal-chip" title="Integrity seal">—</code>
           </div>
           <div class="button-row">
-            <button id="fileCopyLink" class="primary" type="button" disabled>Copy Link</button>
+            <button id="fileCopyLink" class="primary file-action-link" type="button" disabled>Copy Link</button>
           </div>
           <div class="button-row secondary-actions">
-            <button id="fileDownloadCapsule" class="secondary" type="button" disabled>Download Capsule</button>
+            <button id="fileDownloadCapsule" class="secondary file-action-download" type="button" disabled>Download Capsule</button>
           </div>
-          <p class="result-hint" id="fileResultHint">Small drops get a /c/ link. Large drops fall back to Download Capsule.</p>
+          <p class="result-hint" id="fileResultHint">Up to ~3.3 MB total → short /c/ link. Larger drops use Download Capsule.</p>
           <p id="fileStatus" class="status"></p>
         </aside>
       </section>

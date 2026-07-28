@@ -1229,10 +1229,123 @@ pre {
 }
 
 .attach-hint {
-  margin: -8px 0 var(--space-3);
+  margin: -8px 0 var(--space-2);
   color: var(--soft);
   font-size: 0.8125rem;
   line-height: 1.35;
+}
+
+.attach-budget {
+  margin: var(--space-3) 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(0, 113, 227, 0.06);
+  border: 1px solid rgba(0, 113, 227, 0.12);
+}
+
+.attach-budget.is-portable {
+  background: rgba(255, 149, 0, 0.08);
+  border-color: rgba(255, 149, 0, 0.18);
+}
+
+.attach-budget.is-over-limit {
+  background: rgba(255, 59, 48, 0.06);
+  border-color: rgba(255, 59, 48, 0.16);
+}
+
+.attach-budget-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: 10px;
+  font-size: 0.8125rem;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.attach-budget-head span:last-child {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-weight: 400;
+}
+
+.attach-budget-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.attach-budget-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--blue);
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.attach-budget.is-portable .attach-budget-fill {
+  background: #ff9500;
+}
+
+.attach-budget.is-over-limit .attach-budget-fill {
+  background: #ff3b30;
+}
+
+.attach-share-mode {
+  margin: 10px 0 0;
+  color: var(--soft);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.attach-budget.is-portable .attach-share-mode,
+.attach-budget.is-over-limit .attach-share-mode {
+  color: var(--ink);
+}
+
+.create-note {
+  margin: var(--space-2) 0 0;
+  color: #b86a00;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.file-limits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  color: var(--soft);
+  font-size: 0.8125rem;
+}
+
+.file-limits strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.file-result.is-portable-fallback .file-action-link {
+  background: transparent;
+  color: var(--blue);
+  border: 1px solid var(--line);
+}
+
+.file-result.is-portable-fallback .file-action-download {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+
+.file-result.is-portable-fallback .file-action-download:hover {
+  background: #0077ed;
+}
+
+.file-result.expects-portable .result-lead {
+  color: var(--ink);
 }
 
 .attach-picker {

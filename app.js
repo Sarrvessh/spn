@@ -569,12 +569,14 @@ function buildReceiveOnlyUrl() {
 }
 
 function isShortLinkPath(pathname = window.location.pathname) {
-  return /\/c\/[A-Za-z0-9]{8}$/.test(pathname);
+  return /\/c\/[A-Za-z0-9]{8}\/?$/.test(pathname);
 }
 
 function readShortLinkId(pathname = window.location.pathname) {
-  const match = pathname.match(/\/c\/([A-Za-z0-9]{8})$/);
-  return match ? match[1] : null;
+  const fromPath = pathname.match(/\/c\/([A-Za-z0-9]{8})\/?$/);
+  if (fromPath) return fromPath[1];
+  const fromHref = window.location.href.match(/\/c\/([A-Za-z0-9]{8})(?:[/?#]|$)/);
+  return fromHref ? fromHref[1] : null;
 }
 
 async function uploadCapsule(envelope) {
@@ -1170,6 +1172,7 @@ async function openFromShortPath() {
   if (!id) return false;
 
   setScreen("receive");
+  setStatus(receiveStatus, "Opening capsule…");
   const keyParam = readFragment().get("key") || "";
 
   try {

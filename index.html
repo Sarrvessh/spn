@@ -281,7 +281,7 @@
               <p>Files</p>
               <h2>Attach</h2>
             </div>
-            <p class="attach-hint">Up to 5 files · 2 MB each · share via Download Capsule</p>
+            <p class="attach-hint">Up to 5 files · 2 MB each · short link or Download Capsule</p>
             <label class="drop-zone" id="dropZone">
               <span class="drop-zone-title">Drop files here or browse</span>
               <span class="drop-zone-sub">Images, PDF, txt, md, json, csv, zip</span>
@@ -364,16 +364,11 @@
             <p>Share</p>
             <h2>Your drop</h2>
           </div>
-          <p class="result-lead">Encrypted files live in the portable capsule — not in the link.</p>
-          <ol class="file-share-steps">
-            <li>Download the <strong>.capsule.html</strong> file</li>
-            <li>Send that file to your recipient</li>
-            <li>Optionally share the short receive link below</li>
-          </ol>
+          <p class="result-lead">Share with a short link when possible, or download the portable capsule.</p>
           <label class="short-link-field">
-            <span>Receive link</span>
+            <span>Share link</span>
             <input id="fileShareLink" type="text" readonly
-              placeholder="Create a file capsule to get a short receive link." />
+              placeholder="Create a file capsule to get a share link." />
           </label>
           <div class="receipt-meta">
             <span id="fileLinkSize">Short link</span>
@@ -381,12 +376,12 @@
             <code id="fileCreateSeal" class="seal-chip" title="Integrity seal">—</code>
           </div>
           <div class="button-row">
-            <button id="fileDownloadCapsule" class="primary" type="button" disabled>Download Capsule</button>
+            <button id="fileCopyLink" class="primary" type="button" disabled>Copy Link</button>
           </div>
           <div class="button-row secondary-actions">
-            <button id="fileCopyLink" class="secondary" type="button" disabled>Copy Receive Link</button>
+            <button id="fileDownloadCapsule" class="secondary" type="button" disabled>Download Capsule</button>
           </div>
-          <p class="result-hint" id="fileResultHint">File data is not put in the link. Send the downloaded capsule.</p>
+          <p class="result-hint" id="fileResultHint">Small drops get a /c/ link. Large drops fall back to Download Capsule.</p>
           <p id="fileStatus" class="status"></p>
         </aside>
       </section>

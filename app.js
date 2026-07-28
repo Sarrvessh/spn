@@ -701,8 +701,22 @@ function updateLinkMeter() {
 function updateFileLinkMeter() {
   if (!fileShareLink || !fileLinkSize) return;
   const value = fileShareLink.value.trim();
-  fileLinkSize.textContent = value ? "Short link · no file data" : "Short link";
+  if (/\/c\/[A-Za-z0-9]{8}/.test(value)) {
+    fileLinkSize.textContent = "Short link · 8-char id";
+    if (fileLinkWarning) fileLinkWarning.textContent = "";
+    return;
+  }
+  if (value.includes("tab=receive")) {
+    fileLinkSize.textContent = "Receive hint · use with capsule file";
+    if (fileLinkWarning) fileLinkWarning.textContent = "";
+    return;
+  }
+  fileLinkSize.textContent = value ? "Share link" : "Short link";
   if (fileLinkWarning) fileLinkWarning.textContent = "";
+}
+
+function isFileShortShareUrl(value) {
+  return /\/c\/[A-Za-z0-9]{8}/.test(value || "");
 }
 
 function updateKeySummary(hasInlineKey, passwordProtected = false) {
@@ -1420,22 +1434,45 @@ fileForm?.addEventListener("submit", async (event) => {
     state.encryptedEnvelope = encrypted.envelope;
     state.currentKeyParam = encrypted.keyParam;
     rememberPackItem(encrypted.envelope, encrypted.keyParam);
-    fileShareLink.value = buildReceiveOnlyUrl();
-    $("fileCopyLink").disabled = false;
     $("fileDownloadCapsule").disabled = false;
     if (fileCreateSeal) fileCreateSeal.textContent = encrypted.envelope.seal || "—";
-    updateFileLinkMeter();
-    updateResultState();
-    if (fileResultHint) {
-      fileResultHint.textContent = `Includes ${capsule.attachments.length} file(s). Send the downloaded capsule — not a data link.`;
+
+    const fileCount = capsule.attachments.length;
+    try {
+      const id = await uploadCapsule(encrypted.envelope);
+      fileShareLink.value = buildShortShareUrl(id, encrypted.keyParam);
+      $("fileCopyLink").disabled = false;
+      updateFileLinkMeter();
+      updateResultState();
+      if (fileResultHint) {
+        fileResultHint.textContent = `Includes ${fileCount} file(s) in the encrypted short link.`;
+      }
+      setStatus(
+        fileStatus,
+        password
+          ? `File capsule ready with ${fileCount} file(s). Share the short link — password required.`
+          : `File capsule ready with ${fileCount} file(s). Copy the short link to share.`,
+      );
+      $("fileCopyLink")?.focus({ preventScroll: true });
+    } catch (uploadError) {
+      fileShareLink.value = buildReceiveOnlyUrl();
+      $("fileCopyLink").disabled = false;
+      updateFileLinkMeter();
+      updateResultState();
+      if (fileResultHint) {
+        fileResultHint.textContent =
+          "Link storage unavailable or drop too large. Send the downloaded .capsule.html file.";
+      }
+      setStatus(
+        fileStatus,
+        `${uploadError.message} Download and share the portable capsule instead.`,
+        true,
+      );
+      $("fileDownloadCapsule")?.focus({ preventScroll: true });
     }
-    setStatus(
-      fileStatus,
-      `File capsule ready with ${capsule.attachments.length} file(s). Download and share the .capsule.html file.`,
-    );
+
     const fileResult = document.querySelector("#fileScreen .file-result");
     fileResult?.scrollIntoView({ behavior: "smooth", block: "start" });
-    $("fileDownloadCapsule")?.focus({ preventScroll: true });
   } catch (error) {
     setStatus(fileStatus, error.message || "Could not create file capsule.", true);
   }
@@ -1474,7 +1511,7 @@ $("resetFile")?.addEventListener("click", () => {
   renderPendingAttachments();
   setStatus(attachStatus, "");
   state.currentKeyParam = "";
-  if (fileResultHint) fileResultHint.textContent = "File data is not put in the link. Send the downloaded capsule.";
+  if (fileResultHint) fileResultHint.textContent = "Small drops get a /c/ link. Large drops fall back to Download Capsule.";
   $("fileCopyLink").disabled = true;
   $("fileDownloadCapsule").disabled = true;
   if (fileCreateSeal) fileCreateSeal.textContent = "—";
@@ -1485,8 +1522,12 @@ $("resetFile")?.addEventListener("click", () => {
 
 $("copyLink").addEventListener("click", () => copyText(shareLink.value, createStatus, "Link"));
 $("fileCopyLink")?.addEventListener("click", () => {
-  const url = fileShareLink.value || buildReceiveOnlyUrl();
-  const message = `${url}\n\nOpen this page, then use “Open Capsule file” with the .capsule.html you were sent.`;
+  const url = fileShareLink.value.trim();
+  if (isFileShortShareUrl(url)) {
+    copyText(url, fileStatus, "Link");
+    return;
+  }
+  const message = `${url || buildReceiveOnlyUrl()}\n\nOpen this page, then use “Open Capsule file” with the .capsule.html you were sent.`;
   copyText(message, fileStatus, "Receive link");
 });
 

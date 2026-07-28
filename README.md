@@ -21,7 +21,13 @@ Legacy fragment links still work:
 https://example.com/?tab=receive#data=<base64url-envelope>&key=<base64url-key>
 ```
 
-**File Drop** uses a portable `.capsule.html` download plus an optional short receive link (`?tab=receive&kind=file`). File bytes are not stored in KV.
+**File Drop** uses the same short-link flow when the encrypted drop fits storage limits:
+
+- **≤256 KB** — stored inline in KV (same as prompts).
+- **256 KB–5 MB** — ciphertext stored in **Vercel Blob**; KV holds only the blob pointer.
+- **Upload fails or drop too large** — falls back to a portable `.capsule.html` download plus an optional receive hint link (`?tab=receive&kind=file`).
+
+File bytes are never stored in plaintext — only encrypted envelopes.
 
 ## Security Model
 
@@ -34,7 +40,8 @@ https://example.com/?tab=receive#data=<base64url-envelope>&key=<base64url-key>
 
 1. Push this repo and import it in [Vercel](https://vercel.com).
 2. In the project → **Storage** → create **KV** or **Upstash Redis** (free tier) and link it to the project.
-3. Redeploy. Vercel injects Redis env vars automatically (often prefixed, e.g. `SPN_KV_REST_API_URL` — the API detects these).
+3. For file drops over ~256 KB, also enable **Blob** storage on the same project (free tier). Vercel injects `BLOB_READ_WRITE_TOKEN` automatically.
+4. Redeploy. Vercel injects Redis env vars automatically (often prefixed, e.g. `SPN_KV_REST_API_URL` — the API detects these).
 
 ### Local dev with API
 
@@ -47,7 +54,7 @@ Opening `index.html` directly works for UI, but short-link create/receive needs 
 
 ## Guard Behavior
 
-- **Burn after read:** deletes the KV blob on first fetch and marks burned locally.
+- **Burn after read:** deletes the stored capsule on first fetch (KV entry and Blob if used) and marks burned locally.
 - **Password protect:** requires the recipient password to derive the key.
 - **Auto-expiry:** KV TTL follows the capsule expiry; expired links return 404.
 

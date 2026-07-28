@@ -1,6 +1,7 @@
 const BASE62 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const ID_LENGTH = 8;
 const MAX_BLOB_BYTES = 256 * 1024;
+const MAX_FILE_BYTES = 6 * 1024 * 1024;
 const DEFAULT_TTL_SEC = 30 * 24 * 60 * 60;
 const MIN_TTL_SEC = 60;
 const MAX_TTL_SEC = 30 * 24 * 60 * 60;
@@ -55,6 +56,7 @@ module.exports = {
   BASE62,
   ID_LENGTH,
   MAX_BLOB_BYTES,
+  MAX_FILE_BYTES,
   randomId,
   isValidId,
   ttlFromEnvelope,

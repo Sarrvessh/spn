@@ -222,15 +222,17 @@
             <p>Share</p>
             <h2>Your link</h2>
           </div>
-          <p class="result-lead">Your encrypted link will appear here.</p>
+          <p class="result-lead">Your short encrypted link will appear here.</p>
           <div class="link-summary">
-            <span>#data</span>
+            <span>/c/id</span>
             <span id="keySummary">#key when available</span>
           </div>
-          <textarea id="shareLink" readonly rows="6"
-            placeholder="Create a capsule to generate a share link."></textarea>
+          <label class="short-link-field">
+            <span>Share link</span>
+            <input id="shareLink" type="text" readonly placeholder="Create a capsule to get a short link." />
+          </label>
           <div class="receipt-meta">
-            <span id="linkSize">0 characters</span>
+            <span id="linkSize">Short link</span>
             <span id="linkWarning"></span>
             <code id="createSeal" class="seal-chip" title="Integrity seal">—</code>
           </div>
@@ -241,7 +243,7 @@
             <button id="downloadCapsule" class="secondary" type="button" disabled>Download Capsule</button>
             <button id="exportPack" class="secondary" type="button">Export Pack</button>
           </div>
-          <p class="result-hint" id="resultHint">Portable files work offline and in email.</p>
+          <p class="result-hint" id="resultHint">Short link stores encrypted data only. Download works offline.</p>
           <p id="createStatus" class="status"></p>
         </aside>
       </section>

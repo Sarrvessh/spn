@@ -402,6 +402,7 @@ a {
   white-space: nowrap;
 }
 
+.result.has-link .result-lead,
 .file-result.has-link .result-lead {
   display: none;
 }

@@ -557,8 +557,56 @@ async function buildShareUrl(envelope, keyParam) {
   return `${baseUrl}#${fragment.toString()}`;
 }
 
+function buildShortShareUrl(id, keyParam) {
+  const base = `${window.location.origin}/c/${id}`;
+  if (!keyParam) return base;
+  const fragment = new URLSearchParams({ key: keyParam });
+  return `${base}#${fragment.toString()}`;
+}
+
 function buildReceiveOnlyUrl() {
   return `${window.location.href.split("?")[0].split("#")[0]}?tab=receive&kind=file`;
+}
+
+function isShortLinkPath(pathname = window.location.pathname) {
+  return /\/c\/[A-Za-z0-9]{8}$/.test(pathname);
+}
+
+function readShortLinkId(pathname = window.location.pathname) {
+  const match = pathname.match(/\/c\/([A-Za-z0-9]{8})$/);
+  return match ? match[1] : null;
+}
+
+async function uploadCapsule(envelope) {
+  const res = await fetch("/api/c", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ envelope }),
+  });
+  let payload = {};
+  try {
+    payload = await res.json();
+  } catch {
+    payload = {};
+  }
+  if (!res.ok) {
+    throw new Error(payload.error || "Could not store capsule for a short link.");
+  }
+  return payload.id;
+}
+
+async function fetchCapsuleById(id) {
+  const res = await fetch(`/api/c/${encodeURIComponent(id)}`);
+  let payload = {};
+  try {
+    payload = await res.json();
+  } catch {
+    payload = {};
+  }
+  if (!res.ok) {
+    throw new Error(payload.error || "Capsule not found or expired.");
+  }
+  return payload.envelope;
 }
 
 function readFragment() {
@@ -588,14 +636,19 @@ function setScreen(screen) {
   const path = window.location.pathname;
   const hash = window.location.hash || "";
   const currentParams = new URLSearchParams(window.location.search);
+  const onShortLink = isShortLinkPath(path);
+  const origin = window.location.origin;
+
   if (next === "home") {
-    history.replaceState(null, "", `${path}${hash}`);
+    history.replaceState(null, "", hash ? `${origin}/${hash}` : `${origin}/`);
+  } else if (next === "receive" && onShortLink) {
+    // Keep /c/{id} path (and hash) for short share links.
   } else if (next === "receive") {
     const params = new URLSearchParams({ tab: "receive" });
     if (currentParams.get("kind") === "file") params.set("kind", "file");
-    history.replaceState(null, "", `${path}?${params.toString()}${hash}`);
+    history.replaceState(null, "", `${origin}/?${params.toString()}${hash}`);
   } else {
-    history.replaceState(null, "", `${path}?tab=${next}`);
+    history.replaceState(null, "", `${origin}/?tab=${next}${hash}`);
   }
   updateReceiveEmpty();
 
@@ -632,6 +685,12 @@ function updateResultState() {
 }
 
 function updateLinkMeter() {
+  const value = shareLink.value.trim();
+  if (/\/c\/[A-Za-z0-9]{8}/.test(value)) {
+    linkSize.textContent = "Short link · 8-char id";
+    linkWarning.textContent = "";
+    return;
+  }
   const length = shareLink.value.length;
   linkSize.textContent = `${length.toLocaleString()} characters`;
   linkWarning.textContent = length > 7000 ? "Large link — prefer Download Capsule" : "";
@@ -648,6 +707,14 @@ function updateKeySummary(hasInlineKey, passwordProtected = false) {
   if (!keySummary) return;
   if (!shareLink.value) {
     keySummary.textContent = "#key when available";
+    return;
+  }
+  if (/\/c\/[A-Za-z0-9]{8}/.test(shareLink.value)) {
+    keySummary.textContent = passwordProtected
+      ? "password required"
+      : hasInlineKey
+        ? "#key in fragment"
+        : "#key missing";
     return;
   }
   keySummary.textContent = passwordProtected
@@ -1010,7 +1077,7 @@ function isBurned(id) {
 function burnLocalCopy(envelope) {
   if (!envelope.guards?.includes("burn-after-read")) return;
   localStorage.setItem(`prompt-capsule-burned:${envelope.id}`, "true");
-  history.replaceState(null, "", `${window.location.pathname}?tab=receive`);
+  history.replaceState(null, "", `${window.location.origin}/?tab=receive`);
 }
 
 async function openEnvelope(envelope, keyParam = "", password = "") {
@@ -1096,6 +1163,23 @@ async function openFromUrl(password = "") {
   }
 
   await openEnvelope(envelope, keyParam || "", password);
+}
+
+async function openFromShortPath() {
+  const id = readShortLinkId();
+  if (!id) return false;
+
+  setScreen("receive");
+  const keyParam = readFragment().get("key") || "";
+
+  try {
+    const envelope = await fetchCapsuleById(id);
+    await openEnvelope(envelope, keyParam);
+  } catch (error) {
+    setStatus(receiveStatus, error.message || "Could not open this capsule.", true);
+    updateReceiveEmpty();
+  }
+  return true;
 }
 
 function extractPayloadFromHtml(text) {
@@ -1257,19 +1341,36 @@ form.addEventListener("submit", async (event) => {
     state.encryptedEnvelope = encrypted.envelope;
     state.currentKeyParam = encrypted.keyParam;
     rememberPackItem(encrypted.envelope, encrypted.keyParam);
-    shareLink.value = await buildShareUrl(encrypted.envelope, encrypted.keyParam);
+
+    let shareUrl;
+    try {
+      const id = await uploadCapsule(encrypted.envelope);
+      shareUrl = buildShortShareUrl(id, encrypted.keyParam);
+    } catch (uploadError) {
+      $("downloadCapsule").disabled = false;
+      if (createSeal) createSeal.textContent = encrypted.envelope.seal || "—";
+      updateResultState();
+      setStatus(
+        createStatus,
+        `${uploadError.message} Download the portable capsule instead.`,
+        true,
+      );
+      return;
+    }
+
+    shareLink.value = shareUrl;
     $("copyLink").disabled = false;
     $("downloadCapsule").disabled = false;
     if (createSeal) createSeal.textContent = encrypted.envelope.seal || "—";
     updateLinkMeter();
     updateKeySummary(Boolean(encrypted.keyParam), Boolean(password));
     updateResultState();
-    if (resultHint) resultHint.textContent = "Portable files work offline and in email.";
+    if (resultHint) resultHint.textContent = "Short link stored encrypted on the server. Key stays in the URL fragment.";
     setStatus(
       createStatus,
       password
-        ? "Capsule created. Link requires the password · download works offline."
-        : "Capsule created. Link includes #data and #key · download works offline.",
+        ? "Capsule created. Share the short link — password required to open."
+        : "Capsule created. Short link ready — #key stays in the fragment.",
     );
   } catch (error) {
     setStatus(createStatus, error.message || "Could not create capsule.", true);
@@ -1347,7 +1448,7 @@ $("resetCreate").addEventListener("click", () => {
   unlockField.classList.add("is-hidden");
   shareLink.value = "";
   state.currentKeyParam = "";
-  if (resultHint) resultHint.textContent = "Portable files work offline and in email.";
+  if (resultHint) resultHint.textContent = "Short link stored encrypted on the server. Key stays in the URL fragment.";
   $("copyLink").disabled = true;
   $("downloadCapsule").disabled = true;
   if (createSeal) createSeal.textContent = "—";
@@ -1483,22 +1584,37 @@ $("downloadJson").addEventListener("click", () => {
   downloadFile("prompt-capsule.json", JSON.stringify(state.currentCapsule, null, 2));
 });
 
-window.addEventListener("hashchange", () => {
+window.addEventListener("hashchange", async () => {
+  if (isShortLinkPath()) {
+    setScreen("receive");
+    await openFromShortPath();
+    return;
+  }
   if (new URLSearchParams(window.location.search).get("tab") === "receive" || readFragment().has("data")) {
     setScreen("receive");
     openFromUrl();
   }
 });
 
-const initialTab = new URLSearchParams(window.location.search).get("tab");
-if (initialTab === "receive" || readFragment().has("data")) {
-  setScreen("receive");
-  openFromUrl();
-} else if (initialTab === "prompt" || initialTab === "file") {
-  setScreen(initialTab);
-} else {
-  setScreen("home");
+async function bootApp() {
+  const shortId = readShortLinkId();
+  if (shortId) {
+    await openFromShortPath();
+    return;
+  }
+
+  const initialTab = new URLSearchParams(window.location.search).get("tab");
+  if (initialTab === "receive" || readFragment().has("data")) {
+    setScreen("receive");
+    openFromUrl();
+  } else if (initialTab === "prompt" || initialTab === "file") {
+    setScreen(initialTab);
+  } else {
+    setScreen("home");
+  }
 }
+
+bootApp();
 
 updateLinkMeter();
 updateFileLinkMeter();

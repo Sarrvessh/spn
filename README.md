@@ -34,7 +34,7 @@ https://example.com/?tab=receive#data=<base64url-envelope>&key=<base64url-key>
 
 1. Push this repo and import it in [Vercel](https://vercel.com).
 2. In the project → **Storage** → create **KV** or **Upstash Redis** (free tier) and link it to the project.
-3. Redeploy. Vercel injects `KV_REST_API_URL` and `KV_REST_API_TOKEN` automatically.
+3. Redeploy. Vercel injects Redis env vars automatically (often prefixed, e.g. `SPN_KV_REST_API_URL` — the API detects these).
 
 ### Local dev with API
 

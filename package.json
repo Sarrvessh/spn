@@ -2,6 +2,7 @@
   "name": "prompt-capsule",
   "private": true,
   "dependencies": {
+    "@upstash/redis": "^1.34.3",
     "@vercel/kv": "^3.0.0"
   }
 }

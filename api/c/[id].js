@@ -1,5 +1,5 @@
-const { kv } = require("@vercel/kv");
 const { isValidId } = require("../_lib/capsule");
+const { getKv, isKvConfigured } = require("../_lib/kv");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "GET") {
@@ -7,10 +7,11 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+  if (!isKvConfigured()) {
     return res.status(503).json({ error: "KV storage is not configured." });
   }
 
+  const kv = getKv();
   const id = req.query.id;
   if (!isValidId(id)) {
     return res.status(400).json({ error: "Invalid capsule id." });

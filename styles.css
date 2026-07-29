@@ -2916,6 +2916,50 @@ body {
   max-width: 760px;
 }
 
+.home-scroll-cue {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin: clamp(42px, 6vw, 76px) auto 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--blue);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 113, 227, 0.14),
+    0 8px 24px rgba(0, 0, 0, 0.045);
+  transition:
+    transform 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.home-scroll-cue span {
+  width: 13px;
+  height: 13px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-3px) rotate(45deg);
+}
+
+.home-scroll-cue:hover {
+  transform: translateY(2px);
+  background: #fff;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 113, 227, 0.24),
+    0 10px 28px rgba(0, 113, 227, 0.11);
+}
+
+.home-scroll-cue:active {
+  transform: translateY(4px) scale(0.96);
+}
+
+.home-scroll-cue:focus-visible {
+  outline: 3px solid rgba(0, 113, 227, 0.2);
+  outline-offset: 4px;
+}
+
 #homeScreen .landing-tiles {
   margin-top: clamp(84px, 12vw, 160px);
 }

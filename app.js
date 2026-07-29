@@ -2083,6 +2083,10 @@ document.querySelectorAll("textarea").forEach((textarea) => {
   textarea.addEventListener("input", () => autoGrowTextarea(textarea));
 });
 
+document.querySelector("[data-scroll-home]")?.addEventListener("click", () => {
+  $("homeEditorial")?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
 ["userPrompt", "systemPrompt", "variables", "expectedOutput", "notes"].forEach((id) => {
   $(id)?.addEventListener("input", updatePromptMeter);
 });

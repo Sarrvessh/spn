@@ -1,22 +1,39 @@
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 const PACK_STORAGE_KEY = "prompt-capsule-recent-pack";
+const COLLECTION_STORAGE_KEY = "capsule-secure-collections";
 const PACK_LIMIT = 25;
 const ATTACH_MAX_FILES = 5;
 const ATTACH_MAX_EACH = 2 * 1024 * 1024;
 const ATTACH_MAX_TOTAL = 5 * 1024 * 1024;
 /** Reliable short-link ceiling for photos, PDFs, zip (incompressible data). */
-const ATTACH_SHORT_LINK_SAFE_TOTAL = Math.floor(3.35 * 1024 * 1024);
+const ATTACH_SHORT_LINK_SAFE_TOTAL = Math.floor(3.2 * 1024 * 1024);
 const ATTACH_EXT = /\.(jpe?g|png|gif|webp|pdf|txt|md|json|csv|zip)$/i;
 
 const state = {
-  encryptedEnvelope: null,
-  currentKeyParam: "",
+  promptResult: {
+    envelope: null,
+    keyParam: "",
+  },
+  fileResult: {
+    envelope: null,
+    keyParam: "",
+  },
   currentCapsule: null,
   pendingEnvelope: null,
   pendingKeyParam: "",
   importedPack: null,
   pendingAttachments: [],
+  receiveOperation: 0,
+  navigationOperation: 0,
+  navigationInFlight: false,
+  collections: {
+    requestFields: [],
+    formFields: [],
+    requestDashboard: null,
+    formDashboard: null,
+    publicContext: null,
+  },
   screen: "home",
 };
 
@@ -423,7 +440,7 @@ function getFileShareExpectation(totalBytes, fileCount) {
       fillPct,
       countLabel,
       totalLabel,
-      message: "Over ~3.3 MB for photos & zip — short link may fail. Download Capsule is reliable. Text/code may still work.",
+      message: "Over ~3.2 MB for photos & zip — short link may fail. Download Capsule is reliable. Text/code may still work.",
       createNote: "Download Capsule recommended for photos, PDFs, and zip at this size.",
     };
   }
@@ -696,7 +713,11 @@ async function uploadCapsule(envelope) {
 }
 
 async function fetchCapsuleById(id) {
-  const res = await fetch(`/api/c/${encodeURIComponent(id)}`);
+  const res = await fetch(`/api/c/${encodeURIComponent(id)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "open" }),
+  });
   let payload = {};
   try {
     payload = await res.json();
@@ -716,15 +737,38 @@ function readFragment() {
   return new URLSearchParams(hash);
 }
 
+function clearReceiveState({ clearStatus = true } = {}) {
+  state.receiveOperation += 1;
+  state.currentCapsule = null;
+  state.pendingEnvelope = null;
+  state.pendingKeyParam = "";
+  state.importedPack = null;
+  capsuleView.classList.add("is-hidden");
+  passwordUnlock.classList.add("is-hidden");
+  if ($("receivePassword")) $("receivePassword").value = "";
+  if (packList) {
+    packList.innerHTML = "";
+    packList.classList.add("is-hidden");
+  }
+  if (clearStatus) setStatus(receiveStatus, "");
+  updateReceiveEmpty();
+}
+
 function setScreen(screen) {
-  const screens = ["home", "prompt", "file", "receive"];
+  const screens = ["home", "prompt", "file", "receive", "request", "form"];
   const next = screens.includes(screen) ? screen : "home";
+  const previous = state.screen;
+  if (previous === "receive" && next !== "receive") {
+    clearReceiveState();
+  }
   state.screen = next;
 
   $("homeScreen")?.classList.toggle("is-hidden", next !== "home");
   $("promptScreen")?.classList.toggle("is-hidden", next !== "prompt");
   $("fileScreen")?.classList.toggle("is-hidden", next !== "file");
   $("receiveScreen")?.classList.toggle("is-hidden", next !== "receive");
+  $("requestScreen")?.classList.toggle("is-hidden", next !== "request");
+  $("formScreen")?.classList.toggle("is-hidden", next !== "form");
 
   document.querySelectorAll(".mobile-nav-item[data-screen], .nav-links [data-screen]").forEach((el) => {
     const active = el.getAttribute("data-screen") === next;
@@ -737,18 +781,24 @@ function setScreen(screen) {
   const hash = window.location.hash || "";
   const currentParams = new URLSearchParams(window.location.search);
   const onShortLink = isShortLinkPath(path);
+  const onCollectionLink = /^\/[rf]\/[A-Za-z0-9_-]{20,80}\/?$/.test(path);
   const origin = window.location.origin;
 
   if (next === "home") {
-    history.replaceState(null, "", hash ? `${origin}/${hash}` : `${origin}/`);
+    history.replaceState(null, "", `${origin}/`);
   } else if (next === "receive" && onShortLink) {
     // Keep /c/{id} path (and hash) for short share links.
+  } else if (
+    onCollectionLink
+    && ((next === "request" && /^\/r\//.test(path)) || (next === "form" && /^\/f\//.test(path)))
+  ) {
+    // Keep active secure request/form paths.
   } else if (next === "receive") {
     const params = new URLSearchParams({ tab: "receive" });
     if (currentParams.get("kind") === "file") params.set("kind", "file");
     history.replaceState(null, "", `${origin}/?${params.toString()}${hash}`);
   } else {
-    history.replaceState(null, "", `${origin}/?tab=${next}${hash}`);
+    history.replaceState(null, "", `${origin}/?tab=${next}`);
   }
   updateReceiveEmpty();
 
@@ -782,6 +832,34 @@ function updateReceiveEmpty() {
 function updateResultState() {
   if (resultPanel) resultPanel.classList.toggle("has-link", Boolean(shareLink.value));
   if (fileResultPanel) fileResultPanel.classList.toggle("has-link", Boolean(fileShareLink?.value));
+}
+
+function clearPromptResult() {
+  state.promptResult.envelope = null;
+  state.promptResult.keyParam = "";
+  shareLink.value = "";
+  $("copyLink").disabled = true;
+  $("downloadCapsule").disabled = true;
+  if (createSeal) createSeal.textContent = "—";
+  if (resultHint) resultHint.textContent = "Short link stored encrypted on the server. Key stays in the URL fragment.";
+  updateLinkMeter();
+  updateKeySummary(false);
+  updateResultState();
+}
+
+function clearFileResult() {
+  state.fileResult.envelope = null;
+  state.fileResult.keyParam = "";
+  fileShareLink.value = "";
+  $("fileCopyLink").disabled = true;
+  $("fileDownloadCapsule").disabled = true;
+  if (fileCreateSeal) fileCreateSeal.textContent = "—";
+  if (fileResultHint) {
+    fileResultHint.textContent = "Up to ~3.2 MB total → short /c/ link. Larger drops use Download Capsule.";
+  }
+  setFileResultMode("idle");
+  updateFileLinkMeter();
+  updateResultState();
 }
 
 function updateLinkMeter() {
@@ -844,7 +922,7 @@ function setStatus(element, message, isError = false) {
 }
 
 function formatDate(value) {
-  if (!value) return "Never";
+  if (!value) return "No set expiry";
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -963,6 +1041,8 @@ function buildPortableCapsuleHtml(envelope, keyParam) {
   const status = document.getElementById("status");
   const view = document.getElementById("view");
   const gate = document.getElementById("gate");
+  const openBtn = document.getElementById("openBtn");
+  let isOpening = false;
 
   if (envelope.kdf) passwordLabel.classList.remove("hidden");
 
@@ -1039,7 +1119,7 @@ function buildPortableCapsuleHtml(envelope, keyParam) {
   }
 
   function formatDate(value) {
-    if (!value) return "Never";
+    if (!value) return "No set expiry";
     return new Date(value).toLocaleString();
   }
 
@@ -1072,7 +1152,10 @@ function buildPortableCapsuleHtml(envelope, keyParam) {
     URL.revokeObjectURL(url);
   }
 
-  document.getElementById("openBtn").addEventListener("click", async () => {
+  async function openPortableCapsule() {
+    if (isOpening) return;
+    isOpening = true;
+    openBtn.disabled = true;
     status.textContent = "Decrypting…";
     status.className = "";
     try {
@@ -1117,7 +1200,17 @@ function buildPortableCapsuleHtml(envelope, keyParam) {
     } catch (error) {
       status.textContent = error.message || "Unable to decrypt.";
       status.className = "error";
+    } finally {
+      isOpening = false;
+      openBtn.disabled = false;
     }
+  }
+
+  openBtn.addEventListener("click", openPortableCapsule);
+  document.getElementById("password").addEventListener("keydown", function (event) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    openPortableCapsule();
   });
 })();
   </script>
@@ -1194,10 +1287,14 @@ function burnLocalCopy(envelope) {
   history.replaceState(null, "", `${window.location.origin}/?tab=receive`);
 }
 
-async function openEnvelope(envelope, keyParam = "", password = "") {
+async function openEnvelope(envelope, keyParam = "", password = "", operation = null) {
+  const operationId = operation ?? ++state.receiveOperation;
+  if (
+    state.screen !== "receive"
+    || (operation !== null && operationId !== state.receiveOperation)
+  ) return;
   state.pendingEnvelope = envelope;
   state.pendingKeyParam = keyParam || "";
-  state.encryptedEnvelope = envelope;
   capsuleView.classList.add("is-hidden");
   passwordUnlock.classList.add("is-hidden");
   state.currentCapsule = null;
@@ -1210,6 +1307,7 @@ async function openEnvelope(envelope, keyParam = "", password = "") {
 
   if (!envelope.seal) {
     envelope.seal = await integritySeal(envelope.ciphertext);
+    if (operationId !== state.receiveOperation || state.screen !== "receive") return;
   }
 
   if (isBurned(envelope.id)) {
@@ -1227,7 +1325,9 @@ async function openEnvelope(envelope, keyParam = "", password = "") {
 
   try {
     const capsule = await decryptCapsule(envelope, keyParam, password);
+    if (operationId !== state.receiveOperation || state.screen !== "receive") return;
     if (capsule.unlockAt && Date.now() < new Date(capsule.unlockAt).getTime()) {
+      if (envelope.kdf) passwordUnlock.classList.remove("is-hidden");
       setStatus(receiveStatus, `This capsule unlocks at ${formatDate(capsule.unlockAt)}.`, true);
       updateReceiveEmpty();
       return;
@@ -1247,39 +1347,47 @@ async function openEnvelope(envelope, keyParam = "", password = "") {
     renderCapsule(capsule, envelope);
     burnLocalCopy(envelope);
   } catch {
-    setStatus(receiveStatus, "Unable to decrypt this capsule.", true);
+    if (operationId !== state.receiveOperation || state.screen !== "receive") return;
+    if (envelope.kdf) passwordUnlock.classList.remove("is-hidden");
+    setStatus(
+      receiveStatus,
+      envelope.kdf ? "Wrong password or invalid capsule. Try again." : "Unable to decrypt this capsule.",
+      true,
+    );
     updateReceiveEmpty();
   }
 }
 
 async function openFromUrl(password = "") {
+  const operationId = ++state.receiveOperation;
   const params = readFragment();
   const encoded = params.get("data");
   const keyParam = params.get("key");
 
   if (!encoded) {
     if (state.pendingEnvelope && password) {
-      await openEnvelope(state.pendingEnvelope, state.pendingKeyParam, password);
+      await openEnvelope(state.pendingEnvelope, state.pendingKeyParam, password, operationId);
       return;
     }
-    setStatus(receiveStatus, "");
-    updateReceiveEmpty();
+    clearReceiveState();
     return;
   }
 
   let envelope;
   try {
     envelope = await decodeEnvelopePayload(encoded);
+    if (operationId !== state.receiveOperation || state.screen !== "receive") return;
   } catch {
     setStatus(receiveStatus, "The capsule link is malformed.", true);
     updateReceiveEmpty();
     return;
   }
 
-  await openEnvelope(envelope, keyParam || "", password);
+  await openEnvelope(envelope, keyParam || "", password, operationId);
 }
 
 async function openFromShortPath() {
+  const operationId = ++state.receiveOperation;
   const id = readShortLinkId();
   if (!id) return false;
 
@@ -1289,8 +1397,10 @@ async function openFromShortPath() {
 
   try {
     const envelope = await fetchCapsuleById(id);
-    await openEnvelope(envelope, keyParam);
+    if (operationId !== state.receiveOperation || state.screen !== "receive") return true;
+    await openEnvelope(envelope, keyParam, "", operationId);
   } catch (error) {
+    if (operationId !== state.receiveOperation || state.screen !== "receive") return true;
     setStatus(receiveStatus, error.message || "Could not open this capsule.", true);
     updateReceiveEmpty();
   }
@@ -1350,8 +1460,14 @@ function renderPackList(items) {
     button.type = "button";
     const title = item.envelope?.title || item.envelope?.label || `Capsule ${index + 1}`;
     const seal = item.envelope?.seal || "—";
-    button.innerHTML = `<strong>${title}</strong><span>Seal ${seal}</span>`;
-    button.addEventListener("click", () => openEnvelope(item.envelope, item.key || ""));
+    const strong = document.createElement("strong");
+    const span = document.createElement("span");
+    strong.textContent = title;
+    span.textContent = `Seal ${seal}`;
+    button.append(strong, span);
+    button.addEventListener("click", async () => {
+      await openEnvelope(item.envelope, item.key || "");
+    });
     packList.appendChild(button);
   });
 }
@@ -1367,8 +1483,14 @@ function downloadFile(filename, content, type = "application/json") {
 }
 
 async function copyText(text, statusElement, label) {
-  await navigator.clipboard.writeText(text);
-  setStatus(statusElement, `${label} copied.`);
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus(statusElement, `${label} copied.`);
+    return true;
+  } catch {
+    setStatus(statusElement, `Could not copy ${label.toLowerCase()}. Select and copy it manually.`, true);
+    return false;
+  }
 }
 
 passwordProtect.addEventListener("change", () => {
@@ -1405,24 +1527,39 @@ fileScheduledUnlock?.addEventListener("change", () => {
   }
 });
 
-function goScreen(screen) {
-  setScreen(screen);
-  if (screen === "receive") openFromUrl();
+async function goScreen(screen) {
+  if (state.navigationInFlight && screen === state.screen) return;
+  const navigationId = ++state.navigationOperation;
+  state.navigationInFlight = true;
+  try {
+    setScreen(screen);
+    if (screen === "receive") {
+      if (isShortLinkPath()) await openFromShortPath();
+      else await openFromUrl();
+    }
+  } finally {
+    if (navigationId === state.navigationOperation) {
+      state.navigationInFlight = false;
+    }
+  }
 }
 
 document.querySelectorAll("[data-screen]").forEach((el) => {
-  el.addEventListener("click", (event) => {
+  el.addEventListener("click", async (event) => {
     const screen = el.getAttribute("data-screen");
     if (!screen) return;
     if (el.tagName === "A" && screen === "home") {
       event.preventDefault();
     }
-    goScreen(screen);
+    await goScreen(screen);
   });
 });
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton.disabled) return;
+  clearPromptResult();
   setStatus(createStatus, "Encrypting capsule...");
 
   const password = passwordProtect.checked ? $("password").value : "";
@@ -1437,6 +1574,7 @@ form.addEventListener("submit", async (event) => {
   }
 
   try {
+    submitButton.disabled = true;
     const capsule = buildCapsule();
     if (capsule.unlockAt && capsule.expiresAt) {
       if (new Date(capsule.unlockAt).getTime() >= new Date(capsule.expiresAt).getTime()) {
@@ -1453,8 +1591,8 @@ form.addEventListener("submit", async (event) => {
       label: $("label").value.trim(),
     });
 
-    state.encryptedEnvelope = encrypted.envelope;
-    state.currentKeyParam = encrypted.keyParam;
+    state.promptResult.envelope = encrypted.envelope;
+    state.promptResult.keyParam = encrypted.keyParam;
     rememberPackItem(encrypted.envelope, encrypted.keyParam);
 
     let shareUrl;
@@ -1489,11 +1627,16 @@ form.addEventListener("submit", async (event) => {
     );
   } catch (error) {
     setStatus(createStatus, error.message || "Could not create capsule.", true);
+  } finally {
+    submitButton.disabled = false;
   }
 });
 
 fileForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
+  const submitButton = fileForm.querySelector('button[type="submit"]');
+  if (submitButton.disabled) return;
+  clearFileResult();
   setStatus(fileStatus, "Encrypting files...");
 
   if (!state.pendingAttachments.length) {
@@ -1513,6 +1656,7 @@ fileForm?.addEventListener("submit", async (event) => {
   }
 
   try {
+    submitButton.disabled = true;
     const capsule = buildFileCapsule();
     if (capsule.unlockAt && capsule.expiresAt) {
       if (new Date(capsule.unlockAt).getTime() >= new Date(capsule.expiresAt).getTime()) {
@@ -1529,8 +1673,8 @@ fileForm?.addEventListener("submit", async (event) => {
       label: $("fileLabel").value.trim(),
     });
 
-    state.encryptedEnvelope = encrypted.envelope;
-    state.currentKeyParam = encrypted.keyParam;
+    state.fileResult.envelope = encrypted.envelope;
+    state.fileResult.keyParam = encrypted.keyParam;
     rememberPackItem(encrypted.envelope, encrypted.keyParam);
     $("fileDownloadCapsule").disabled = false;
     if (fileCreateSeal) fileCreateSeal.textContent = encrypted.envelope.seal || "—";
@@ -1578,6 +1722,8 @@ fileForm?.addEventListener("submit", async (event) => {
     fileResult?.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
     setStatus(fileStatus, error.message || "Could not create file capsule.", true);
+  } finally {
+    submitButton.disabled = false;
   }
 });
 
@@ -1589,15 +1735,7 @@ $("resetCreate").addEventListener("click", () => {
   passwordField.classList.add("is-hidden");
   expiryField.classList.remove("is-hidden");
   unlockField.classList.add("is-hidden");
-  shareLink.value = "";
-  state.currentKeyParam = "";
-  if (resultHint) resultHint.textContent = "Short link stored encrypted on the server. Key stays in the URL fragment.";
-  $("copyLink").disabled = true;
-  $("downloadCapsule").disabled = true;
-  if (createSeal) createSeal.textContent = "—";
-  updateLinkMeter();
-  updateKeySummary(false);
-  updateResultState();
+  clearPromptResult();
   setStatus(createStatus, "");
 });
 
@@ -1609,21 +1747,11 @@ $("resetFile")?.addEventListener("click", () => {
   filePasswordField.classList.add("is-hidden");
   fileExpiryField.classList.remove("is-hidden");
   fileUnlockField.classList.add("is-hidden");
-  fileShareLink.value = "";
   state.pendingAttachments = [];
   renderPendingAttachments();
   updateAttachBudget();
   setStatus(attachStatus, "");
-  state.currentKeyParam = "";
-  setFileResultMode("idle");
-  if (fileResultHint) {
-    fileResultHint.textContent = "Up to ~3.3 MB total → short /c/ link. Larger drops use Download Capsule.";
-  }
-  $("fileCopyLink").disabled = true;
-  $("fileDownloadCapsule").disabled = true;
-  if (fileCreateSeal) fileCreateSeal.textContent = "—";
-  updateFileLinkMeter();
-  updateResultState();
+  clearFileResult();
   setStatus(fileStatus, "");
 });
 
@@ -1664,16 +1792,18 @@ if (dropZone) {
 }
 
 $("downloadCapsule").addEventListener("click", () => {
-  if (!state.encryptedEnvelope) return;
-  const html = buildPortableCapsuleHtml(state.encryptedEnvelope, state.currentKeyParam);
-  downloadFile(`${safeFilename(state.encryptedEnvelope.title)}.capsule.html`, html, "text/html");
+  const { envelope, keyParam } = state.promptResult;
+  if (!envelope) return;
+  const html = buildPortableCapsuleHtml(envelope, keyParam);
+  downloadFile(`${safeFilename(envelope.title)}.capsule.html`, html, "text/html");
   setStatus(createStatus, "Portable capsule downloaded.");
 });
 
 $("fileDownloadCapsule")?.addEventListener("click", () => {
-  if (!state.encryptedEnvelope) return;
-  const html = buildPortableCapsuleHtml(state.encryptedEnvelope, state.currentKeyParam);
-  downloadFile(`${safeFilename(state.encryptedEnvelope.title)}.capsule.html`, html, "text/html");
+  const { envelope, keyParam } = state.fileResult;
+  if (!envelope) return;
+  const html = buildPortableCapsuleHtml(envelope, keyParam);
+  downloadFile(`${safeFilename(envelope.title)}.capsule.html`, html, "text/html");
   setStatus(fileStatus, "Portable capsule downloaded.");
 });
 
@@ -1709,13 +1839,30 @@ $("importPackFile").addEventListener("change", async (event) => {
   event.target.value = "";
 });
 
-$("unlockButton").addEventListener("click", () => {
+async function submitUnlock() {
+  const button = $("unlockButton");
+  if (button.disabled) return;
   const password = $("receivePassword").value;
-  if (state.pendingEnvelope) {
-    openEnvelope(state.pendingEnvelope, state.pendingKeyParam, password);
-  } else {
-    openFromUrl(password);
+  button.disabled = true;
+  try {
+    if (state.pendingEnvelope) {
+      await openEnvelope(state.pendingEnvelope, state.pendingKeyParam, password);
+    } else {
+      await openFromUrl(password);
+    }
+  } finally {
+    button.disabled = false;
   }
+}
+
+$("unlockButton").addEventListener("click", async () => {
+  await submitUnlock();
+});
+
+$("receivePassword").addEventListener("keydown", async (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  await submitUnlock();
 });
 
 $("copyPrompt").addEventListener("click", () => {
@@ -1743,7 +1890,7 @@ window.addEventListener("hashchange", async () => {
   }
   if (new URLSearchParams(window.location.search).get("tab") === "receive" || readFragment().has("data")) {
     setScreen("receive");
-    openFromUrl();
+    await openFromUrl();
   }
 });
 
@@ -1754,11 +1901,17 @@ async function bootApp() {
     return;
   }
 
+  const collectionMatch = window.location.pathname.match(/^\/([rf])\/[A-Za-z0-9_-]{20,80}\/?$/);
+  if (collectionMatch) {
+    setScreen(collectionMatch[1] === "r" ? "request" : "form");
+    return;
+  }
+
   const initialTab = new URLSearchParams(window.location.search).get("tab");
   if (initialTab === "receive" || readFragment().has("data")) {
     setScreen("receive");
-    openFromUrl();
-  } else if (initialTab === "prompt" || initialTab === "file") {
+    await openFromUrl();
+  } else if (["prompt", "file", "request", "form"].includes(initialTab)) {
     setScreen(initialTab);
   } else {
     setScreen("home");

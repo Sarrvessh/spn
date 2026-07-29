@@ -960,6 +960,221 @@ button:disabled {
   font-weight: 400;
 }
 
+.collection-empty {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: 16px;
+  background: var(--page);
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.field-builder-list,
+.collection-list,
+.submission-list,
+.audit-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.field-card,
+.collection-card,
+.submission-card,
+.audit-event {
+  border-radius: 16px;
+  background: var(--page);
+  padding: var(--space-3);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.field-card {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.field-card[draggable="true"] {
+  cursor: grab;
+}
+
+.field-card.is-dragging {
+  opacity: 0.55;
+}
+
+.field-card-header,
+.collection-card-header,
+.submission-card-header,
+.audit-event {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.field-card-title,
+.collection-card-title,
+.submission-card-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.field-card-title strong,
+.collection-card-title strong,
+.submission-card-title strong {
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.field-card-title small,
+.collection-card-title small,
+.submission-card-title small,
+.audit-event small {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.mini-actions,
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.icon-button,
+.mini-button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0 10px;
+}
+
+.icon-button {
+  width: 34px;
+  padding: 0;
+}
+
+.field-options {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.condition-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.preview-surface,
+.public-surface,
+.owner-dashboard {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.public-shell {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.public-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.public-field {
+  display: grid;
+  gap: 8px;
+}
+
+.public-field legend,
+.public-field-label {
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.public-field small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.option-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 0.875rem;
+}
+
+.option-row input {
+  width: auto;
+  box-shadow: none;
+}
+
+.notice-block,
+.security-notice,
+.receipt-box {
+  border-radius: 16px;
+  background: #f7f7fa;
+  padding: var(--space-3);
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.security-notice strong,
+.receipt-box strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink);
+}
+
+.collection-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.collection-stat {
+  border-radius: 14px;
+  background: var(--page);
+  padding: var(--space-2);
+}
+
+.collection-stat span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.collection-stat strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.danger-text {
+  color: var(--danger);
+}
+
 #receivePanel {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -1504,7 +1719,7 @@ pre {
 
   .mobile-nav {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     position: fixed;
     left: 0;
     right: 0;
@@ -1537,6 +1752,10 @@ pre {
     width: 22px;
     height: 22px;
     display: block;
+  }
+
+  .mobile-nav-item span {
+    font-size: 0.625rem;
   }
 
   .mobile-nav-item.is-active {
@@ -1577,7 +1796,9 @@ pre {
 
   .grid.two,
   .unlock,
-  .meta {
+  .meta,
+  .condition-row,
+  .collection-status-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1663,6 +1884,13 @@ pre {
   .attach-chip,
   .attach-download-list li {
     flex-wrap: wrap;
+  }
+
+  .field-card-header,
+  .collection-card-header,
+  .submission-card-header,
+  .audit-event {
+    flex-direction: column;
   }
 
   pre {

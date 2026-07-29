@@ -23,6 +23,8 @@
         <button type="button" data-screen="home" class="nav-button">Home</button>
         <button type="button" data-screen="prompt" class="nav-button">Prompt</button>
         <button type="button" data-screen="file" class="nav-button">Files</button>
+        <button type="button" data-screen="request" class="nav-button">Requests</button>
+        <button type="button" data-screen="form" class="nav-button">Forms</button>
         <button type="button" data-screen="receive" class="nav-button">Receive</button>
       </div>
     </nav>
@@ -56,6 +58,26 @@
           </span>
           <strong>Files</strong>
           <span>Up to 5 files · 2 MB each · short link or capsule</span>
+        </button>
+        <button class="landing-tile" type="button" data-screen="request">
+          <span class="landing-tile-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M7 4.75h10A1.75 1.75 0 0 1 18.75 6.5v11A1.75 1.75 0 0 1 17 19.25H7A1.75 1.75 0 0 1 5.25 17.5v-11A1.75 1.75 0 0 1 7 4.75Z" stroke="currentColor" stroke-width="1.5" />
+              <path d="M8.75 9h6.5M8.75 12h6.5M8.75 15h3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </span>
+          <strong>Requests</strong>
+          <span>Collect one encrypted package of sensitive information.</span>
+        </button>
+        <button class="landing-tile" type="button" data-screen="form">
+          <span class="landing-tile-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5.25 6.5A1.75 1.75 0 0 1 7 4.75h10a1.75 1.75 0 0 1 1.75 1.75v11A1.75 1.75 0 0 1 17 19.25H7a1.75 1.75 0 0 1-1.75-1.75v-11Z" stroke="currentColor" stroke-width="1.5" />
+              <path d="M8.5 9.25h7M8.5 12h3M13 12h2.5M8.5 14.75h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </span>
+          <strong>Forms</strong>
+          <span>Run temporary encrypted forms with retention controls.</span>
         </button>
       </section>
 
@@ -177,7 +199,7 @@
                 <i aria-hidden="true"></i>
                 <span>
                   <strong>Auto-expiry</strong>
-                  <small>Invalidate after a time limit</small>
+                  <small>Content expiry; short-link storage is capped at 30 days even when off</small>
                 </span>
               </label>
               <label class="check">
@@ -201,8 +223,8 @@
                   <option value="86400000" selected>24 Hours</option>
                   <option value="604800000">7 Days</option>
                   <option value="2592000000">30 Days</option>
-                  <option value="never">Never</option>
                 </select>
+                <small>Server-hosted links are retained for at most 30 days.</small>
               </label>
               <label id="unlockField" class="is-hidden">
                 <span>Unlock After</span>
@@ -329,7 +351,7 @@
                 <i aria-hidden="true"></i>
                 <span>
                   <strong>Auto-expiry</strong>
-                  <small>Invalidate after a time limit</small>
+                  <small>Content expiry; short-link storage is capped at 30 days even when off</small>
                 </span>
               </label>
               <label class="check">
@@ -353,8 +375,8 @@
                   <option value="86400000" selected>24 Hours</option>
                   <option value="604800000">7 Days</option>
                   <option value="2592000000">30 Days</option>
-                  <option value="never">Never</option>
                 </select>
+                <small>Server-hosted links are retained for at most 30 days.</small>
               </label>
               <label id="fileUnlockField" class="is-hidden">
                 <span>Unlock After</span>
@@ -375,7 +397,7 @@
             <p>Share</p>
             <h2>Your drop</h2>
           </div>
-          <p class="result-lead">Short /c/ link up to ~3.3 MB. Larger drops use Download Capsule.</p>
+          <p class="result-lead">Short /c/ link up to ~3.2 MB. Larger drops use Download Capsule.</p>
           <ul class="file-limits" aria-label="File limits">
             <li><strong>5</strong> files max</li>
             <li><strong>2 MB</strong> each</li>
@@ -397,7 +419,7 @@
           <div class="button-row secondary-actions">
             <button id="fileDownloadCapsule" class="secondary file-action-download" type="button" disabled>Download Capsule</button>
           </div>
-          <p class="result-hint" id="fileResultHint">Up to ~3.3 MB total → short /c/ link. Larger drops use Download Capsule.</p>
+          <p class="result-hint" id="fileResultHint">Up to ~3.2 MB total → short /c/ link. Larger drops use Download Capsule.</p>
           <p id="fileStatus" class="status"></p>
         </aside>
       </section>
@@ -511,6 +533,26 @@
         </div>
       </section>
     </section>
+
+    <section id="requestScreen" class="screen is-hidden">
+      <section class="workspace-header" aria-label="Secure Requests workspace">
+        <div class="workspace-heading">
+          <button class="text-button back-home" type="button" data-screen="home">Home</button>
+          <h2>Requests</h2>
+        </div>
+      </section>
+      <div id="requestApp"></div>
+    </section>
+
+    <section id="formScreen" class="screen is-hidden">
+      <section class="workspace-header" aria-label="Secure Forms workspace">
+        <div class="workspace-heading">
+          <button class="text-button back-home" type="button" data-screen="home">Home</button>
+          <h2>Forms</h2>
+        </div>
+      </section>
+      <div id="formApp"></div>
+    </section>
   </main>
 
   <nav class="mobile-nav" aria-label="Primary">
@@ -544,9 +586,24 @@
       </svg>
       <span>Receive</span>
     </button>
+    <button type="button" class="mobile-nav-item" data-screen="request">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M7 4.75h10A1.75 1.75 0 0 1 18.75 6.5v11A1.75 1.75 0 0 1 17 19.25H7A1.75 1.75 0 0 1 5.25 17.5v-11A1.75 1.75 0 0 1 7 4.75Z" stroke="currentColor" stroke-width="1.5" />
+        <path d="M8.75 9h6.5M8.75 12h6.5M8.75 15h3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      </svg>
+      <span>Requests</span>
+    </button>
+    <button type="button" class="mobile-nav-item" data-screen="form">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M5.25 6.5A1.75 1.75 0 0 1 7 4.75h10a1.75 1.75 0 0 1 1.75 1.75v11A1.75 1.75 0 0 1 17 19.25H7a1.75 1.75 0 0 1-1.75-1.75v-11Z" stroke="currentColor" stroke-width="1.5" />
+        <path d="M8.5 9.25h7M8.5 12h3M13 12h2.5M8.5 14.75h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      </svg>
+      <span>Forms</span>
+    </button>
   </nav>
 
   <script src="/app.js" defer></script>
+  <script src="/collections.js" defer></script>
 </body>
 
 </html>

@@ -3,6 +3,7 @@ const { getKv, isKvConfigured } = require("../_lib/kv");
 const { saveCapsule } = require("../_lib/store");
 
 module.exports = async function handler(req, res) {
+  res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
@@ -25,14 +26,23 @@ module.exports = async function handler(req, res) {
   if (!envelope?.ciphertext || !envelope?.iv) {
     return res.status(400).json({ error: "Invalid encrypted envelope." });
   }
+  if (envelope.expiresAt) {
+    const expiry = new Date(envelope.expiresAt).getTime();
+    if (!Number.isFinite(expiry)) {
+      return res.status(400).json({ error: "Invalid capsule expiry." });
+    }
+    if (expiry <= Date.now()) {
+      return res.status(400).json({ error: "Capsule expiry must be in the future." });
+    }
+  }
 
   const size = envelopeByteSize(envelope);
   if (size > MAX_FILE_BYTES) {
-    return res.status(413).json({ error: "Capsule exceeds 5 MB limit." });
+    return res.status(413).json({ error: "Capsule exceeds the 4.5 MB Vercel request limit." });
   }
 
   const ip = clientIp(req);
-  if (!(await checkRateLimit(kv, ip))) {
+  if (!(await checkRateLimit(kv, ip, "capsule"))) {
     return res.status(429).json({ error: "Too many uploads. Try again later." });
   }
 
@@ -41,6 +51,9 @@ module.exports = async function handler(req, res) {
     return res.status(201).json(saved);
   } catch (error) {
     if (error.code === "BLOB_REQUIRED") {
+      return res.status(413).json({ error: error.message });
+    }
+    if (error.code === "TOO_LARGE") {
       return res.status(413).json({ error: error.message });
     }
     return res.status(500).json({ error: error.message || "Could not store capsule." });

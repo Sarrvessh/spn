@@ -42,6 +42,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   background: var(--page);
   scroll-behavior: smooth;
@@ -991,7 +995,16 @@ button:disabled {
 
 .field-card {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.field-card:focus-within {
+  border-color: rgba(0, 113, 227, 0.28);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.07);
 }
 
 .field-card[draggable="true"] {
@@ -1018,6 +1031,146 @@ button:disabled {
   display: grid;
   gap: 2px;
   min-width: 0;
+}
+
+.field-card-title {
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.field-index {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: rgba(0, 113, 227, 0.1);
+  color: var(--blue);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.field-core {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.field-core > label:only-child {
+  grid-column: 1 / -1;
+}
+
+.field-card label > span small {
+  color: var(--soft);
+  font-weight: 400;
+}
+
+.field-card-settings {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--page);
+}
+
+.field-card-settings summary {
+  position: relative;
+  padding: 11px 36px 11px 14px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.field-card-settings summary::-webkit-details-marker {
+  display: none;
+}
+
+.field-card-settings summary::after {
+  content: "+";
+  position: absolute;
+  right: 14px;
+  color: var(--blue);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.field-card-settings[open] summary::after {
+  content: "−";
+}
+
+.field-settings-body {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.field-guards .check {
+  min-height: 52px;
+}
+
+.collection-security > .guards {
+  margin-bottom: var(--space-2);
+}
+
+.collection-advanced-settings {
+  overflow: hidden;
+  margin-top: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--page);
+}
+
+.collection-advanced-settings > summary {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 14px 42px 14px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.collection-advanced-settings > summary::-webkit-details-marker {
+  display: none;
+}
+
+.collection-advanced-settings > summary strong {
+  color: var(--ink);
+  font-size: 0.875rem;
+}
+
+.collection-advanced-settings > summary small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.collection-advanced-settings > summary::after {
+  content: "+";
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  color: var(--blue);
+  font-size: 1.1rem;
+  transform: translateY(-50%);
+}
+
+.collection-advanced-settings[open] > summary::after {
+  content: "−";
+}
+
+.collection-advanced-body {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.collection-advanced-toggles .check {
+  min-height: 52px;
 }
 
 .field-card-title strong,
@@ -1103,6 +1256,11 @@ button:disabled {
   color: var(--ink);
   font-size: 0.9375rem;
   font-weight: 600;
+}
+
+.required-mark {
+  margin-left: 4px;
+  color: var(--danger);
 }
 
 .public-field small {
@@ -1795,6 +1953,7 @@ pre {
   }
 
   .grid.two,
+  .field-core,
   .unlock,
   .meta,
   .condition-row,

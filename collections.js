@@ -22,7 +22,25 @@
   const hashEmail = (value) => hashValue(String(value || "").trim().toLowerCase());
   const hashSecret = (value) => hashValue(String(value || ""));
   function defaultField(kind, type = "short-text") {
-    const label = type === "consent" ? "I consent to submit this information securely" : type === "notice" ? "Security notice" : type === "section" ? "Section" : kind === "request" ? "Requested information" : "Answer";
+    const labels = {
+      "short-text": kind === "request" ? "Requested information" : "Short answer",
+      "long-text": "Detailed response",
+      email: "Email address",
+      phone: "Phone number",
+      number: "Number",
+      date: "Date",
+      dropdown: "Choose an option",
+      radio: "Select one option",
+      checkboxes: "Select all that apply",
+      file: "Upload a file",
+      "multi-file": "Upload files",
+      signature: "Signature",
+      consent: "I consent to submit this information securely",
+      notice: "Security notice",
+      section: "Section heading",
+      severity: "Severity",
+    };
+    const label = labels[type] || "Response";
     return { id: id(), type, label, description: type === "notice" ? "Sensitive values are encrypted before upload." : "", required: !["notice", "section"].includes(type), placeholder: "", options: ["Option 1", "Option 2"], validation: "", acceptedFileTypes: ".pdf,.png,.jpg,.jpeg", maxFileSizeMb: 5, maxFileCount: type === "multi-file" ? 5 : 1, sensitive: !["notice", "section"].includes(type), condition: { sourceFieldId: "", operator: "equals", value: "" } };
   }
   async function encryptPayload(payload, keyParam, title, expiresAt = "") {
@@ -36,7 +54,17 @@
     return { keyParam: finalKey, envelope: { id: id("env"), iv: bytesToBase64Url(iv), ciphertext, pack: packed.pack, label: "prod", guards: ["auto-expiry"], createdAt: Date.now(), expiresAt, alg: "AES-256-GCM", title, seal: await integritySeal(ciphertext) } };
   }
   async function api(url, init = {}) {
-    const res = await fetch(url, init);
+    let res;
+    try {
+      res = await fetch(url, init);
+    } catch {
+      const local = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+      throw new Error(
+        local
+          ? "Cannot reach the collection API. Start `npx vercel dev` and open the URL it provides."
+          : "Cannot reach the collection service. Check your connection and confirm the latest Vercel deployment is active.",
+      );
+    }
     const contentType = res.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
       throw new Error(
@@ -56,7 +84,11 @@
     return match ? { kind: match[1] === "r" ? "request" : "form", token: match[2] } : null;
   }
   function ensure(kind) {
-    if (!s[`${kind}Fields`].length) s[`${kind}Fields`] = [defaultField(kind), defaultField(kind, "file"), defaultField(kind, "consent")];
+    if (!s[`${kind}Fields`].length) {
+      s[`${kind}Fields`] = kind === "request"
+        ? [defaultField(kind), defaultField(kind, "consent")]
+        : [defaultField(kind), defaultField(kind, "file"), defaultField(kind, "consent")];
+    }
   }
   function renderWorkspace(kind) {
     if (s.public?.kind === kind) return;
@@ -64,11 +96,75 @@
     const c = cfg[kind], app = document.getElementById(c.appId);
     if (!app) return;
     app.innerHTML = `<section class="workspace"><form id="${kind}CollectionForm" class="editor"><div class="band"><div class="section-heading"><p>${esc(c.title)}</p><h2>Details</h2></div><div class="grid two"><label><span>Title</span><input id="${kind}Title" required /></label><label><span>Category</span><select id="${kind}Category">${options(c.cats)}</select></label>${kind === "request" ? `<label><span>Recipient name</span><input id="${kind}RecipientName" /></label><label><span>Recipient email</span><input id="${kind}RecipientEmail" type="email" /></label><label><span>Submission deadline</span><input id="${kind}CloseAt" type="datetime-local" /></label>` : `<label><span>Opening date</span><input id="${kind}OpenAt" type="datetime-local" /></label><label><span>Closing date</span><input id="${kind}CloseAt" type="datetime-local" /></label><label><span>Maximum responses</span><input id="${kind}MaxResponses" type="number" min="1" value="25" /></label>`}</div><label><span>Description or instructions</span><textarea id="${kind}Description" rows="4"></textarea></label><label><span>Custom completion message</span><textarea id="${kind}Completion" rows="3"></textarea></label></div><div class="band"><div class="section-heading"><p>Shared builder</p><h2>Fields</h2></div><div class="grid two compact"><label><span>Field type</span><select id="${kind}FieldType">${fieldTypes.map(([v,l]) => `<option value="${v}">${esc(l)}</option>`).join("")}</select></label><label><span>Add field</span><button id="${kind}AddField" class="secondary" type="button">Add Field</button></label></div><div id="${kind}Fields" class="field-builder-list"></div></div><div class="band"><div class="section-heading"><p>Access</p><h2>Secure settings</h2></div><div class="guards"><label class="check"><input id="${kind}OneTime" type="checkbox" ${kind === "request" ? "checked" : ""} /><i></i><span><strong>${kind === "request" ? "Accept one submission" : "Limit this form to one response total"}</strong><small>${kind === "request" ? "Requests close after their single response" : "Leave off to accept responses up to the maximum"}</small></span></label><label class="check"><input id="${kind}AutoClose" type="checkbox" checked /><i></i><span><strong>Auto-close at response limit</strong><small>Close when the configured maximum is reached</small></span></label><label class="check"><input id="${kind}RequirePassword" type="checkbox" /><i></i><span><strong>Require password</strong><small>Recipient must enter the shared password</small></span></label><label class="check"><input id="${kind}RequireOtp" type="checkbox" /><i></i><span><strong>Require one-time code</strong><small>Use a separately shared verification code</small></span></label><label class="check"><input id="${kind}RequireConsent" type="checkbox" checked /><i></i><span><strong>Require consent before submission</strong><small>Validated by the server before encrypted upload</small></span></label>${kind === "form" ? `<label class="check"><input id="${kind}Anonymous" type="checkbox" /><i></i><span><strong>Anonymous submissions</strong><small>Do not collect identity automatically</small></span></label>` : ""}<label class="check"><input id="${kind}BurnAfterView" type="checkbox" checked /><i></i><span><strong>Burn after owner views</strong><small>Delete the server's encrypted payload after local reveal</small></span></label><label class="check"><input id="${kind}BurnAfterExport" type="checkbox" /><i></i><span><strong>Burn after export</strong><small>Delete the server's encrypted payload after archive download</small></span></label></div><div class="grid two security-options"><label><span>Allowed recipient email</span><input id="${kind}AllowedEmail" type="email" /></label><label><span>Access password (case-sensitive)</span><input id="${kind}AccessPassword" type="password" /></label><label><span>One-time code (case-sensitive)</span><input id="${kind}OtpCode" type="password" /></label><label><span>Retention rule</span><select id="${kind}Retention"><option value="view">After viewing</option><option value="export">After export</option><option value="86400000">24 hours</option><option value="604800000">7 days</option><option value="close">After close</option><option value="manual">Manual burn</option></select></label></div></div><div class="actions"><button class="primary" type="submit">${esc(c.action)}</button><button id="${kind}ResetCollection" class="secondary" type="button">Reset</button></div></form><aside class="result"><div class="section-heading"><p>Private link</p><h2>Encrypted ${kind}</h2></div><p class="result-lead">Configuration and submissions are encrypted. Link tokens are stored only as hashes.</p><label class="short-link-field"><span>Share link</span><input id="${kind}ShareLink" type="text" readonly /></label><div class="button-row"><button id="${kind}CopyLink" class="primary" type="button" disabled>Copy Link</button></div><p id="${kind}Status" class="status"></p><div class="section-heading" style="margin-top:24px"><p>Owner</p><h2>Dashboard</h2></div><div id="${kind}OwnerDashboard" class="owner-dashboard"></div></aside></section>`;
+    organizeCollectionSettings(kind);
     wire(kind); renderFields(kind); renderDashboard(kind);
+  }
+  function organizeCollectionSettings(kind) {
+    const passwordToggle = document.getElementById(`${kind}RequirePassword`);
+    const band = passwordToggle?.closest(".band");
+    if (!band) return;
+    band.classList.add("collection-security");
+
+    if (kind === "request") {
+      const oneTime = document.getElementById(`${kind}OneTime`);
+      if (oneTime) {
+        oneTime.checked = true;
+        oneTime.disabled = true;
+      }
+      const autoCloseLabel = document.getElementById(`${kind}AutoClose`)?.closest("label");
+      if (autoCloseLabel) autoCloseLabel.hidden = true;
+    }
+
+    const details = document.createElement("details");
+    details.className = "collection-advanced-settings";
+    const summary = document.createElement("summary");
+    summary.innerHTML = "<strong>Advanced security</strong><small>Passwords, codes, retention, and burn rules</small>";
+    const body = document.createElement("div");
+    body.className = "collection-advanced-body";
+    const toggleGrid = document.createElement("div");
+    toggleGrid.className = "guards collection-advanced-toggles";
+    const inputGrid = document.createElement("div");
+    inputGrid.className = "grid two security-options";
+
+    [`${kind}RequirePassword`, `${kind}RequireOtp`, `${kind}BurnAfterView`, `${kind}BurnAfterExport`]
+      .forEach((fieldId) => {
+        const label = document.getElementById(fieldId)?.closest("label");
+        if (label) toggleGrid.append(label);
+      });
+    [`${kind}AllowedEmail`, `${kind}AccessPassword`, `${kind}OtpCode`, `${kind}Retention`]
+      .forEach((fieldId) => {
+        const label = document.getElementById(fieldId)?.closest("label");
+        if (label) inputGrid.append(label);
+      });
+
+    body.append(toggleGrid, inputGrid);
+    details.append(summary, body);
+    band.append(details);
+    const syncCredentialFields = () => {
+      const passwordLabel = document.getElementById(`${kind}AccessPassword`)?.closest("label");
+      const otpLabel = document.getElementById(`${kind}OtpCode`)?.closest("label");
+      if (passwordLabel) passwordLabel.hidden = !document.getElementById(`${kind}RequirePassword`).checked;
+      if (otpLabel) otpLabel.hidden = !document.getElementById(`${kind}RequireOtp`).checked;
+    };
+    document.getElementById(`${kind}RequirePassword`).addEventListener("change", syncCredentialFields);
+    document.getElementById(`${kind}RequireOtp`).addEventListener("change", syncCredentialFields);
+    syncCredentialFields();
+    band.querySelectorAll(".guards, .security-options").forEach((container) => {
+      if (container !== toggleGrid && container !== inputGrid && !container.children.length) {
+        container.remove();
+      }
+    });
   }
   function wire(kind) {
     document.getElementById(`${kind}CollectionForm`).addEventListener("submit", (event) => createCollection(event, kind));
-    document.getElementById(`${kind}AddField`).addEventListener("click", () => { s[`${kind}Fields`].push(defaultField(kind, document.getElementById(`${kind}FieldType`).value)); renderFields(kind); });
+    document.getElementById(`${kind}AddField`).addEventListener("click", () => {
+      const type = document.getElementById(`${kind}FieldType`).value;
+      const field = defaultField(kind, type);
+      const sameTypeCount = s[`${kind}Fields`].filter((item) => item.type === type).length;
+      if (sameTypeCount) field.label = `${field.label} ${sameTypeCount + 1}`;
+      s[`${kind}Fields`].push(field);
+      renderFields(kind);
+    });
     document.getElementById(`${kind}CopyLink`).addEventListener("click", () => copyCollectionText(document.getElementById(`${kind}ShareLink`).value, document.getElementById(`${kind}Status`), "Link"));
     document.getElementById(`${kind}ResetCollection`).addEventListener("click", () => { s[`${kind}Fields`] = [defaultField(kind), defaultField(kind, "consent")]; s.public = null; renderWorkspace(kind); });
   }
@@ -103,8 +199,19 @@
   function fieldCard(kind, field, index, fields) {
     const typeLabel = fieldTypes.find(([v]) => v === field.type)?.[1] || field.type;
     const supportsOptions = ["dropdown", "radio", "checkboxes"].includes(field.type);
+    const supportsPlaceholder = ["short-text", "long-text", "email", "phone", "number"].includes(field.type);
+    const supportsValidation = ["short-text", "long-text", "email", "phone", "number"].includes(field.type);
+    const isFile = ["file", "multi-file"].includes(field.type);
+    const isStructural = ["notice", "section"].includes(field.type);
     const sourceOptions = fields.filter((item) => item.id !== field.id && !["notice", "section"].includes(item.type)).map((item) => `<option value="${item.id}" ${field.condition?.sourceFieldId === item.id ? "selected" : ""}>${esc(item.label)}</option>`).join("");
-    return `<article class="field-card" draggable="true" data-field-id="${field.id}"><div class="field-card-header"><div class="field-card-title"><strong>${index + 1}. ${esc(field.label || "Untitled")}</strong><small>${esc(typeLabel)}${field.sensitive ? " - sensitive" : ""}</small></div><div class="mini-actions"><button class="icon-button" type="button" title="Move up" data-field-action="up" data-field-id="${field.id}">↑</button><button class="icon-button" type="button" title="Move down" data-field-action="down" data-field-id="${field.id}">↓</button><button class="mini-button" type="button" data-field-action="duplicate" data-field-id="${field.id}">Duplicate</button><button class="mini-button" type="button" data-field-action="delete" data-field-id="${field.id}">Delete</button></div></div><div class="grid two"><label><span>Label</span><input data-field-prop="label" data-field-id="${field.id}" value="${esc(field.label)}" /></label><label><span>Placeholder</span><input data-field-prop="placeholder" data-field-id="${field.id}" value="${esc(field.placeholder)}" /></label></div><label><span>Description or helper text</span><textarea rows="2" data-field-prop="description" data-field-id="${field.id}">${esc(field.description)}</textarea></label>${supportsOptions ? `<label><span>Options</span><textarea rows="3" data-field-prop="options" data-field-id="${field.id}">${esc((field.options || []).join("\n"))}</textarea></label>` : ""}<div class="grid two"><label><span>Validation pattern (regular expression)</span><input data-field-prop="validation" data-field-id="${field.id}" value="${esc(field.validation)}" placeholder="Example: [A-Z]{2}-[0-9]{4}" /></label><label><span>Accepted file types</span><input data-field-prop="acceptedFileTypes" data-field-id="${field.id}" value="${esc(field.acceptedFileTypes)}" /></label><label><span>Max file size MB</span><input type="number" min="1" data-field-prop="maxFileSizeMb" data-field-id="${field.id}" value="${esc(field.maxFileSizeMb)}" /></label><label><span>Max file count</span><input type="number" min="1" data-field-prop="maxFileCount" data-field-id="${field.id}" value="${esc(field.maxFileCount)}" /></label></div><div class="guards"><label class="check"><input type="checkbox" data-field-prop="required" data-field-id="${field.id}" ${field.required ? "checked" : ""} /><i></i><span><strong>Required</strong><small>Recipient must complete it</small></span></label><label class="check"><input type="checkbox" data-field-prop="sensitive" data-field-id="${field.id}" ${field.sensitive ? "checked" : ""} /><i></i><span><strong>Sensitive field</strong><small>Excluded from audit metadata</small></span></label></div>${kind === "form" ? `<div class="field-options"><small>Conditional display</small><div class="condition-row"><label><span>Source field</span><select data-field-prop="conditionSource" data-field-id="${field.id}"><option value="">Always show</option>${sourceOptions}</select></label><label><span>Rule</span><select data-field-prop="conditionOperator" data-field-id="${field.id}">${ops.map(([v,l]) => `<option value="${v}" ${field.condition?.operator === v ? "selected" : ""}>${l}</option>`).join("")}</select></label><label><span>Value</span><input data-field-prop="conditionValue" data-field-id="${field.id}" value="${esc(field.condition?.value)}" /></label></div></div>` : ""}</article>`;
+    const advanced = [
+      supportsValidation ? `<label><span>Validation pattern</span><input data-field-prop="validation" data-field-id="${field.id}" value="${esc(field.validation)}" placeholder="Example: [A-Z]{2}-[0-9]{4}" /></label>` : "",
+      isFile ? `<label><span>Accepted file types</span><input data-field-prop="acceptedFileTypes" data-field-id="${field.id}" value="${esc(field.acceptedFileTypes)}" /></label><label><span>Max file size MB</span><input type="number" min="1" data-field-prop="maxFileSizeMb" data-field-id="${field.id}" value="${esc(field.maxFileSizeMb)}" /></label><label><span>Max file count</span><input type="number" min="1" data-field-prop="maxFileCount" data-field-id="${field.id}" value="${esc(field.maxFileCount)}" /></label>` : "",
+    ].join("");
+    const switches = isStructural ? "" : `<div class="guards field-guards"><label class="check"><input type="checkbox" data-field-prop="required" data-field-id="${field.id}" ${field.required ? "checked" : ""} /><i></i><span><strong>Required</strong><small>Recipient must complete it</small></span></label><label class="check"><input type="checkbox" data-field-prop="sensitive" data-field-id="${field.id}" ${field.sensitive ? "checked" : ""} /><i></i><span><strong>Sensitive field</strong><small>Excluded from audit metadata</small></span></label></div>`;
+    const condition = kind === "form" && !isStructural ? `<div class="field-options"><small>Conditional display</small><div class="condition-row"><label><span>Source field</span><select data-field-prop="conditionSource" data-field-id="${field.id}"><option value="">Always show</option>${sourceOptions}</select></label><label><span>Rule</span><select data-field-prop="conditionOperator" data-field-id="${field.id}">${ops.map(([v,l]) => `<option value="${v}" ${field.condition?.operator === v ? "selected" : ""}>${l}</option>`).join("")}</select></label><label><span>Value</span><input data-field-prop="conditionValue" data-field-id="${field.id}" value="${esc(field.condition?.value)}" /></label></div></div>` : "";
+    const settings = `${advanced ? `<div class="grid two">${advanced}</div>` : ""}${switches}${condition}`;
+    return `<article class="field-card" draggable="true" data-field-id="${field.id}"><div class="field-card-header"><div class="field-card-title"><span class="field-index">${index + 1}</span><div><strong>${esc(field.label || typeLabel)}</strong><small>${esc(typeLabel)}${field.sensitive ? " · sensitive" : ""}</small></div></div><div class="mini-actions"><button class="icon-button" type="button" title="Move up" aria-label="Move field up" data-field-action="up" data-field-id="${field.id}">↑</button><button class="icon-button" type="button" title="Move down" aria-label="Move field down" data-field-action="down" data-field-id="${field.id}">↓</button><button class="mini-button" type="button" data-field-action="duplicate" data-field-id="${field.id}">Duplicate</button><button class="mini-button danger-text" type="button" data-field-action="delete" data-field-id="${field.id}">Delete</button></div></div><div class="field-core"><label><span>Field label</span><input data-field-prop="label" data-field-id="${field.id}" value="${esc(field.label)}" placeholder="${esc(typeLabel)}" /></label>${supportsPlaceholder ? `<label><span>Placeholder <small>optional</small></span><input data-field-prop="placeholder" data-field-id="${field.id}" value="${esc(field.placeholder)}" /></label>` : ""}</div><label><span>Helper text <small>optional</small></span><textarea rows="2" data-field-prop="description" data-field-id="${field.id}">${esc(field.description)}</textarea></label>${supportsOptions ? `<label><span>Options <small>one per line</small></span><textarea rows="3" data-field-prop="options" data-field-id="${field.id}">${esc((field.options || []).join("\n"))}</textarea></label>` : ""}${settings ? `<details class="field-card-settings"><summary>Field settings</summary><div class="field-settings-body">${settings}</div></details>` : ""}</article>`;
   }
   async function createCollection(event, kind) {
     event.preventDefault();
@@ -291,14 +398,15 @@
   }
   function publicField(field) {
     const req = field.required ? "required" : "", desc = field.description ? `<small>${esc(field.description)}</small>` : "";
-    if (field.type === "section") return `<div class="public-field"><h3>${esc(field.label)}</h3>${desc}</div>`;
-    if (field.type === "notice") return `<div class="notice-block"><strong>${esc(field.label)}</strong>${desc}</div>`;
-    if (["long-text", "signature"].includes(field.type)) return `<label class="public-field"><span class="public-field-label">${esc(field.label)}</span>${desc}<textarea data-public-field="${field.id}" rows="${field.type === "signature" ? 3 : 5}" placeholder="${esc(field.placeholder)}" ${req}></textarea></label>`;
-    if (["dropdown", "severity"].includes(field.type)) { const opts = field.type === "severity" ? ["Low", "Medium", "High", "Critical"] : field.options || []; return `<label class="public-field"><span class="public-field-label">${esc(field.label)}</span>${desc}<select data-public-field="${field.id}" ${req}><option value="">Select</option>${opts.map((item) => `<option>${esc(item)}</option>`).join("")}</select></label>`; }
-    if (["radio", "checkboxes", "consent"].includes(field.type)) { const inputType = field.type === "radio" ? "radio" : "checkbox", opts = field.type === "consent" ? [field.label] : field.options || []; return `<fieldset class="public-field"><legend>${esc(field.label)}</legend>${desc}<div class="option-stack">${opts.map((item, index) => `<label class="option-row"><input data-public-field="${field.id}" name="${field.id}" type="${inputType}" value="${esc(item)}" ${field.required && (field.type === "radio" || field.type === "consent") && index === 0 ? "required" : ""} />${esc(item)}</label>`).join("")}</div></fieldset>`; }
-    if (["file", "multi-file"].includes(field.type)) return `<label class="public-field"><span class="public-field-label">${esc(field.label)}</span>${desc}<input data-public-field="${field.id}" type="file" accept="${esc(field.acceptedFileTypes)}" ${field.type === "multi-file" ? "multiple" : ""} ${req} /></label>`;
+    const label = `${esc(field.label || "Untitled field")}${field.required ? `<span class="required-mark" aria-hidden="true">*</span>` : ""}`;
+    if (field.type === "section") return `<div class="public-field"><h3>${label}</h3>${desc}</div>`;
+    if (field.type === "notice") return `<div class="notice-block"><strong>${label}</strong>${desc}</div>`;
+    if (["long-text", "signature"].includes(field.type)) return `<label class="public-field"><span class="public-field-label">${label}</span>${desc}<textarea data-public-field="${field.id}" rows="${field.type === "signature" ? 3 : 5}" placeholder="${esc(field.placeholder)}" ${req}></textarea></label>`;
+    if (["dropdown", "severity"].includes(field.type)) { const opts = field.type === "severity" ? ["Low", "Medium", "High", "Critical"] : field.options || []; return `<label class="public-field"><span class="public-field-label">${label}</span>${desc}<select data-public-field="${field.id}" ${req}><option value="">Select</option>${opts.map((item) => `<option>${esc(item)}</option>`).join("")}</select></label>`; }
+    if (["radio", "checkboxes", "consent"].includes(field.type)) { const inputType = field.type === "radio" ? "radio" : "checkbox", opts = field.type === "consent" ? [field.label || "I consent to submit this information securely"] : field.options || []; return `<fieldset class="public-field"><legend>${label}</legend>${desc}<div class="option-stack">${opts.map((item, index) => `<label class="option-row"><input data-public-field="${field.id}" name="${field.id}" type="${inputType}" value="${esc(item)}" ${field.required && (field.type === "radio" || field.type === "consent") && index === 0 ? "required" : ""} />${esc(item)}</label>`).join("")}</div></fieldset>`; }
+    if (["file", "multi-file"].includes(field.type)) return `<label class="public-field"><span class="public-field-label">${label}</span>${desc}<input data-public-field="${field.id}" type="file" accept="${esc(field.acceptedFileTypes)}" ${field.type === "multi-file" ? "multiple" : ""} ${req} /></label>`;
     const type = field.type === "phone" ? "tel" : field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "email" ? "email" : "text";
-    return `<label class="public-field"><span class="public-field-label">${esc(field.label)}</span>${desc}<input data-public-field="${field.id}" type="${type}" placeholder="${esc(field.placeholder)}" ${req} /></label>`;
+    return `<label class="public-field"><span class="public-field-label">${label}</span>${desc}<input data-public-field="${field.id}" type="${type}" placeholder="${esc(field.placeholder)}" ${req} /></label>`;
   }
   function fieldValue(field, includeFiles = true) {
     const controls = Array.from(document.querySelectorAll(`[data-public-field="${field.id}"]`));

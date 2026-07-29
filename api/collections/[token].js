@@ -226,6 +226,11 @@ async function handler(req, res) {
           return { status: 200, payload: { status: publicState(record).status, expiresAt } };
         }
 
+        if (body.action === "destroy") {
+          await kv.del(key);
+          return { status: 200, payload: { status: "destroyed" } };
+        }
+
         throw requestError(400, "Unsupported owner action.");
       }
 
@@ -236,6 +241,14 @@ async function handler(req, res) {
         throw requestError(404, "Submission not found.");
       }
 
+      if (target) {
+        const item = submissions.find((submission) => submission.id === target);
+        if (item?.status === "burned") {
+          if (retentionBurned) await save(kv, key, record);
+          throw requestError(409, "Submission is already burned.");
+        }
+      }
+
       let burned = 0;
       const burnedAt = Date.now();
       record.submissions = submissions.map((item) => {
@@ -243,6 +256,10 @@ async function handler(req, res) {
         burned += 1;
         return burnSubmission(item, burnedAt);
       });
+      if (!burned) {
+        if (retentionBurned) await save(kv, key, record);
+        throw requestError(409, "No encrypted submissions remain to burn.");
+      }
       record.audit = [
         ...(record.audit || []),
         audit(target ? "submission_burned" : "submissions_burned", { count: burned }),

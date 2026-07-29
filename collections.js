@@ -356,14 +356,70 @@
     const target = document.getElementById(`${kind}OwnerDashboard`);
     if (!target) return;
     const mine = records().filter((item) => item.kind === kind);
-    if (!mine.length) { target.innerHTML = `<div class="collection-empty">Created ${kind}s appear here on this device. The server keeps encrypted payloads and non-sensitive audit receipts only.</div>`; return; }
-    target.innerHTML = `<div class="collection-list">${mine.map((r) => `<article class="collection-card"><div class="collection-card-header"><div class="collection-card-title"><strong>${esc(r.localTitle)}</strong><small>${esc(formatDate(r.createdAt))}</small></div><div class="mini-actions"><button class="mini-button" data-action="load" data-token="${r.token}" type="button">Load</button><button class="mini-button" data-action="copy" data-token="${r.token}" type="button">Copy</button><button class="mini-button" data-action="duplicate" data-token="${r.token}" type="button">Duplicate</button></div></div></article>`).join("")}</div><div id="${kind}DashboardDetail"></div>`;
+    if (!mine.length) {
+      s.dashboards[kind] = null;
+      target.innerHTML = `<div class="collection-empty"><strong>No ${kind}s yet</strong><span>Create a link above. Owner responses for this device will appear here.</span></div>`;
+      return;
+    }
+    const openToken = s.dashboards[kind]?.record?.token || "";
+    target.innerHTML = `<div class="collection-list">${mine.map((r) => {
+      const isOpen = r.token === openToken;
+      return `<article class="collection-card${isOpen ? " is-open" : ""}" data-token="${r.token}"><div class="collection-card-header"><div class="collection-card-title"><strong>${esc(r.localTitle || "Untitled")}</strong><small>Created ${esc(formatDate(r.createdAt))}</small></div>${isOpen ? `<span class="owner-open-badge">Open</span>` : ""}</div><div class="collection-card-actions"><button class="owner-action-button is-primary" data-action="load" data-token="${r.token}" type="button">${isOpen ? "Refresh" : "Open responses"}</button><button class="owner-action-button" data-action="copy" data-token="${r.token}" type="button">Copy link</button><button class="owner-action-button" data-action="duplicate" data-token="${r.token}" type="button">Duplicate</button><button class="owner-action-button is-danger" data-action="delete" data-token="${r.token}" type="button">Delete</button></div></article>`;
+    }).join("")}</div><div id="${kind}DashboardDetail" class="owner-detail"${openToken ? "" : " hidden"}></div>`;
+    if (openToken && s.dashboards[kind]?.data) {
+      renderDashboardDetail(kind, s.dashboards[kind].record, s.dashboards[kind].data);
+    }
     target.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", async () => {
       const record = mine.find((item) => item.token === button.dataset.token); if (!record) return;
       if (button.dataset.action === "copy") await copyCollectionText(record.shareUrl, document.getElementById(`${kind}Status`), "Link");
       if (button.dataset.action === "load") await loadDashboard(kind, record);
       if (button.dataset.action === "duplicate") await duplicateTemplate(kind, record);
+      if (button.dataset.action === "delete") await deleteCollection(kind, record);
     }));
+  }
+  function forgetRecord(token) {
+    saveRecords(records().filter((row) => row.token !== token));
+  }
+  async function deleteCollection(kind, record) {
+    if (!confirm(`Delete this ${kind} from Capsule and this device? The public link will stop working.`)) return;
+    try {
+      await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "destroy" }),
+      });
+    } catch (error) {
+      if (!/not found or expired/i.test(error.message || "")) {
+        setStatus(document.getElementById(`${kind}Status`), error.message || `Could not delete ${kind}.`, true);
+        return;
+      }
+    }
+    forgetRecord(record.token);
+    if (s.dashboards[kind]?.record?.token === record.token) s.dashboards[kind] = null;
+    renderDashboard(kind);
+    const shareLink = document.getElementById(`${kind}ShareLink`);
+    if (shareLink?.value?.includes(record.token)) {
+      shareLink.value = "";
+      document.getElementById(`${kind}CopyLink`).disabled = true;
+    }
+    setStatus(document.getElementById(`${kind}Status`), `${cfg[kind].title} deleted.`);
+  }
+  function auditLabel(type) {
+    const labels = {
+      collection_created: "Collection created",
+      submission_received: "Submission received",
+      submission_burned: "Submission burned",
+      submissions_burned: "All submissions burned",
+      link_revoked: "Link revoked",
+      deadline_extended: "Deadline extended",
+      retention_burn: "Retention burn",
+    };
+    return labels[type] || String(type || "Event").replace(/_/g, " ");
+  }
+  function closeDashboard(kind) {
+    s.dashboards[kind] = null;
+    renderDashboard(kind);
+    setStatus(document.getElementById(`${kind}Status`), "Responses panel closed.");
   }
   async function duplicateTemplate(kind, record) {
     try {
@@ -375,24 +431,67 @@
       setStatus(document.getElementById(`${kind}Status`), "Template duplicated locally. Review settings, then create a new link.");
     } catch (error) { setStatus(document.getElementById(`${kind}Status`), error.message || "Duplicate failed.", true); }
   }
+  function renderDashboardDetail(kind, record, data) {
+    const detail = document.getElementById(`${kind}DashboardDetail`);
+    if (!detail) return;
+    const submissions = data.submissions || [];
+    const availableCount = submissions.filter((item) => item.status !== "burned").length;
+    const burnedCount = submissions.filter((item) => item.status === "burned").length;
+    const effectiveExpiry = data.expiresAt || data.maxRetentionAt;
+    const auditEvents = [...(data.audit || [])].reverse();
+    detail.hidden = false;
+    detail.innerHTML = `<section class="owner-detail-panel"><header class="owner-detail-header"><div class="owner-detail-heading"><p>Loaded responses</p><h3>${esc(record.localTitle || "Untitled")}</h3><small>${esc(data.status || "active")} · ${submissions.length} total</small></div><button class="owner-close-button" type="button" data-owner-close aria-label="Close responses">Close</button></header><div class="collection-status-grid"><div class="collection-stat"><span>Status</span><strong>${esc(data.status)}</strong></div><div class="collection-stat"><span>Available</span><strong data-stat-available>${availableCount}</strong></div><div class="collection-stat"><span>Available until</span><strong>${esc(formatDate(effectiveExpiry))}</strong></div><div class="collection-stat"><span>Burned</span><strong data-stat-burned>${burnedCount}</strong></div></div><div class="owner-toolbar"><button class="owner-action-button is-danger" data-owner="revoke" type="button" ${data.status === "revoked" ? "disabled" : ""}>Revoke link</button><button class="owner-action-button" data-owner="burn-all" type="button" ${availableCount ? "" : "disabled"}>Burn all</button><button class="owner-action-button is-primary" data-owner="export" type="button">Export archive</button><button class="owner-action-button is-danger" data-owner="delete" type="button">Delete ${esc(kind)}</button></div><div class="submission-list">${submissions.length ? submissions.map((item) => {
+      const burned = item.status === "burned";
+      return `<article class="submission-card${burned ? " is-burned" : ""}"><div class="submission-card-header"><div class="submission-card-title"><strong>${esc(item.receiptId || item.id)}</strong><small>${esc(formatDate(item.submittedAt))} · ${esc(item.status || "stored")}</small></div><div class="collection-card-actions"><button class="owner-action-button is-primary" data-sub="open" data-id="${item.id}" ${burned ? "disabled" : ""} type="button">Open</button><button class="owner-action-button" data-sub="download" data-id="${item.id}" ${burned ? "disabled" : ""} type="button">Download</button><button class="owner-action-button is-danger" data-sub="burn" data-id="${item.id}" ${burned ? "disabled" : ""} type="button">${burned ? "Burned" : "Burn"}</button></div></div><div id="${kind}Submission-${item.id}"></div></article>`;
+    }).join("") : `<div class="collection-empty"><strong>No submissions yet</strong><span>Share the link and check back here for encrypted replies.</span></div>`}</div>${auditEvents.length ? `<section class="audit-panel"><div class="audit-panel-heading"><strong>Activity</strong><small>${auditEvents.length} events</small></div><div class="audit-list">${auditEvents.map((event) => `<div class="audit-event"><div class="audit-event-copy"><strong>${esc(auditLabel(event.type))}</strong>${event.count ? `<span class="audit-event-meta">${esc(String(event.count))} item${Number(event.count) === 1 ? "" : "s"}</span>` : ""}</div><small>${esc(formatDate(event.at))}</small></div>`).join("")}</div></section>` : ""}</section>`;
+    detail.querySelector("[data-owner-close]")?.addEventListener("click", () => closeDashboard(kind));
+    detail.querySelectorAll("[data-owner]").forEach((button) => button.addEventListener("click", () => ownerAction(kind, record, button.dataset.owner)));
+    detail.querySelectorAll("[data-sub]").forEach((button) => button.addEventListener("click", () => submissionAction(kind, record, button.dataset.sub, button.dataset.id)));
+  }
   async function loadDashboard(kind, record) {
     const detail = document.getElementById(`${kind}DashboardDetail`);
-    detail.innerHTML = `<p class="status">Loading encrypted submissions...</p>`;
+    if (!detail) return;
+    detail.hidden = false;
+    detail.innerHTML = `<section class="owner-detail-panel"><header class="owner-detail-header"><div class="owner-detail-heading"><p>Loaded responses</p><h3>${esc(record.localTitle || "Untitled")}</h3><small>Loading encrypted submissions…</small></div><button class="owner-close-button" type="button" data-owner-close aria-label="Close responses">Close</button></header><p class="status">Fetching owner dashboard…</p></section>`;
+    detail.querySelector("[data-owner-close]")?.addEventListener("click", () => closeDashboard(kind));
     try {
       const data = await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}`);
       s.dashboards[kind] = { data, record };
-      const submissions = data.submissions || [];
-      const effectiveExpiry = data.expiresAt || data.maxRetentionAt;
-      detail.innerHTML = `<div class="collection-status-grid"><div class="collection-stat"><span>Status</span><strong>${esc(data.status)}</strong></div><div class="collection-stat"><span>Available</span><strong data-stat-available>${submissions.filter((item) => item.status !== "burned").length}</strong></div><div class="collection-stat"><span>Available until</span><strong>${esc(formatDate(effectiveExpiry))}</strong></div><div class="collection-stat"><span>Burned</span><strong data-stat-burned>${submissions.filter((item) => item.status === "burned").length}</strong></div></div><div class="inline-actions"><button class="secondary" data-owner="revoke" type="button">Revoke Link</button><button class="secondary" data-owner="burn-all" type="button">Burn All</button><button class="secondary" data-owner="export" type="button">Export Encrypted Archive</button></div><div class="submission-list">${submissions.length ? submissions.map((item) => `<article class="submission-card"><div class="submission-card-header"><div class="submission-card-title"><strong>${esc(item.receiptId || item.id)}</strong><small>${esc(formatDate(item.submittedAt))} - ${esc(item.status || "stored")}</small></div><div class="mini-actions"><button class="mini-button" data-sub="open" data-id="${item.id}" ${item.status === "burned" ? "disabled" : ""} type="button">Open</button><button class="mini-button" data-sub="download" data-id="${item.id}" ${item.status === "burned" ? "disabled" : ""} type="button">Download</button><button class="mini-button" data-sub="burn" data-id="${item.id}" ${item.status === "burned" ? "disabled" : ""} type="button">Burn</button></div></div><div id="${kind}Submission-${item.id}"></div></article>`).join("") : `<div class="collection-empty">No submissions yet.</div>`}</div><div class="audit-list">${(data.audit || []).map((event) => `<div class="audit-event"><span>${esc(event.type)}</span><small>${esc(formatDate(event.at))}</small></div>`).join("")}</div>`;
-      detail.querySelectorAll("[data-owner]").forEach((button) => button.addEventListener("click", () => ownerAction(kind, record, button.dataset.owner)));
-      detail.querySelectorAll("[data-sub]").forEach((button) => button.addEventListener("click", () => submissionAction(kind, record, button.dataset.sub, button.dataset.id)));
-    } catch (error) { detail.innerHTML = `<p class="status error">${esc(error.message)}</p>`; }
+      renderDashboard(kind);
+      document.getElementById(`${kind}DashboardDetail`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } catch (error) {
+      detail.innerHTML = `<section class="owner-detail-panel"><header class="owner-detail-header"><div class="owner-detail-heading"><p>Loaded responses</p><h3>${esc(record.localTitle || "Untitled")}</h3></div><button class="owner-close-button" type="button" data-owner-close aria-label="Close responses">Close</button></header><p class="status error">${esc(error.message)}</p></section>`;
+      detail.querySelector("[data-owner-close]")?.addEventListener("click", () => closeDashboard(kind));
+    }
   }
   async function ownerAction(kind, record, action) {
     try {
-      if (action === "revoke") await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "revoke" }) });
-      if (action === "burn-all") { if (!confirm("Burn all encrypted submission payloads? Audit receipts remain without sensitive values.")) return; await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}`, { method: "DELETE" }); }
-      if (action === "export") { const data = await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}`); downloadFile(`${safeFilename(record.localTitle || kind)}-encrypted-archive.json`, JSON.stringify(data, null, 2)); if (data.retention?.burnAfterExport) await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}`, { method: "DELETE" }); }
+      if (action === "delete") {
+        await deleteCollection(kind, record);
+        return;
+      }
+      if (action === "revoke") {
+        await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "revoke" }) });
+      }
+      if (action === "burn-all") {
+        const available = (s.dashboards[kind]?.data?.submissions || []).some((item) => item.status !== "burned");
+        if (!available) {
+          setStatus(document.getElementById(`${kind}Status`), "Nothing left to burn.", true);
+          return;
+        }
+        if (!confirm("Burn all encrypted submission payloads? Audit receipts remain without sensitive values.")) return;
+        await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}`, { method: "DELETE" });
+      }
+      if (action === "export") {
+        const data = await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}`);
+        downloadFile(`${safeFilename(record.localTitle || kind)}-encrypted-archive.json`, JSON.stringify(data, null, 2));
+        if (data.retention?.burnAfterExport) {
+          const remaining = (data.submissions || []).some((item) => item.status !== "burned");
+          if (remaining) {
+            await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}`, { method: "DELETE" });
+          }
+        }
+      }
       await loadDashboard(kind, record);
     } catch (error) { setStatus(document.getElementById(`${kind}Status`), error.message || "Owner action failed.", true); }
   }
@@ -400,9 +499,25 @@
     try {
       const data = s.dashboards[kind]?.data || await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}`);
       const submission = (data.submissions || []).find((item) => item.id === submissionId);
-      if (!submission?.encryptedPayload) return;
-      if (action === "download") { downloadFile(`${submission.receiptId || submission.id}.encrypted-submission.json`, JSON.stringify(submission.encryptedPayload, null, 2)); if (data.retention?.burnAfterExport) await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}&submission=${encodeURIComponent(submissionId)}`, { method: "DELETE" }); }
-      if (action === "burn") { if (!confirm("Burn this encrypted submission payload? The audit receipt will remain.")) return; await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}&submission=${encodeURIComponent(submissionId)}`, { method: "DELETE" }); }
+      if (!submission) return;
+      if (submission.status === "burned" || !submission.encryptedPayload) {
+        if (action === "burn") setStatus(document.getElementById(`${kind}Status`), "Submission is already burned.", true);
+        return;
+      }
+      if (action === "download") {
+        downloadFile(`${submission.receiptId || submission.id}.encrypted-submission.json`, JSON.stringify(submission.encryptedPayload, null, 2));
+        if (data.retention?.burnAfterExport) {
+          await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}&submission=${encodeURIComponent(submissionId)}`, { method: "DELETE" });
+          await loadDashboard(kind, record);
+        }
+        return;
+      }
+      if (action === "burn") {
+        if (!confirm("Burn this encrypted submission payload? The audit receipt will remain.")) return;
+        await api(`/api/collections/${encodeURIComponent(record.token)}?owner=${encodeURIComponent(record.ownerToken)}&submission=${encodeURIComponent(submissionId)}`, { method: "DELETE" });
+        await loadDashboard(kind, record);
+        return;
+      }
       if (action === "open") {
         if (data.retention?.burnAfterView && !confirm("This submission is configured to burn after viewing. Reveal it now?")) return;
         const payload = await decryptCapsule(submission.encryptedPayload, record.keyParam, "");
@@ -417,9 +532,12 @@
           submission.status = "burned";
           delete submission.encryptedPayload;
           const card = reveal.closest(".submission-card");
+          card?.classList.add("is-burned");
           card?.querySelectorAll("[data-sub]").forEach((button) => { button.disabled = true; });
+          const burnButton = card?.querySelector('[data-sub="burn"]');
+          if (burnButton) burnButton.textContent = "Burned";
           const subtitle = card?.querySelector(".submission-card-title small");
-          if (subtitle) subtitle.textContent = `${formatDate(submission.submittedAt)} - burned`;
+          if (subtitle) subtitle.textContent = `${formatDate(submission.submittedAt)} · burned`;
           const revealStatus = reveal.querySelector("[data-reveal-status]");
           if (revealStatus) revealStatus.textContent = "Encrypted server payload burned. This decrypted view remains available until you leave or reload.";
           const detail = document.getElementById(`${kind}DashboardDetail`);
@@ -427,6 +545,8 @@
           const burned = detail?.querySelector("[data-stat-burned]");
           if (available) available.textContent = String(Math.max(0, Number(available.textContent) - 1));
           if (burned) burned.textContent = String(Number(burned.textContent) + 1);
+          const burnAll = detail?.querySelector('[data-owner="burn-all"]');
+          if (burnAll && Number(available?.textContent || 0) <= 0) burnAll.disabled = true;
         }
         return;
       }

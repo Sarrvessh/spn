@@ -50,9 +50,6 @@ module.exports = async function handler(req, res) {
     const saved = await saveCapsule(envelope);
     return res.status(201).json(saved);
   } catch (error) {
-    if (error.code === "BLOB_REQUIRED") {
-      return res.status(413).json({ error: error.message });
-    }
     if (error.code === "TOO_LARGE") {
       return res.status(413).json({ error: error.message });
     }

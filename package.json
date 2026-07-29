@@ -5,7 +5,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "check": "node --check app.js && node --check collections.js && node --check api/_lib/capsule.js && node --check api/_lib/collection.js && node --check api/_lib/kv.js && node --check api/_lib/store.js && node --check api/c/index.js && node --check api/c/[id].js && node --check api/collections/index.js && node --check api/collections/[token].js && node --check api/cron/cleanup-blobs.js",
+    "check": "node --check app.js && node --check collections.js && node --check api/_lib/capsule.js && node --check api/_lib/collection.js && node --check api/_lib/kv.js && node --check api/_lib/store.js && node --check api/c/index.js && node --check api/c/[id].js && node --check api/c/init.js && node --check api/c/complete.js && node --check api/upload-token.js && node --check api/collections/index.js && node --check api/collections/[token].js && node --check api/cron/cleanup-blobs.js",
     "test": "node --test tests/regression.test.js"
   },
   "dependencies": {

@@ -370,6 +370,101 @@ test("burn-after-read is single-consumer and keeps pointer on Blob read failure"
   assert.ok(await blobRedis.get("capsule:IJKLMNOP"), "failed read must not consume capsule");
 });
 
+test("larger capsules still get short-link storage when Blob is not configured", async () => {
+  const redis = new FakeRedis();
+  const previousBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
+  delete process.env.BLOB_READ_WRITE_TOKEN;
+
+  try {
+    const { MAX_BLOB_BYTES } = require("../api/_lib/capsule");
+    const store = loadWithKvMock("../api/_lib/store", redis);
+    const envelope = {
+      ciphertext: "x".repeat(MAX_BLOB_BYTES + 4096),
+      iv: "iv",
+      guards: [],
+      createdAt: Date.now(),
+    };
+
+    const saved = await store.saveCapsule(envelope);
+    assert.equal(saved.storage, "inline");
+    const record = await redis.get(`capsule:${saved.id}`);
+    assert.equal(record.storage, "inline");
+    assert.equal(record.envelope.ciphertext.length, envelope.ciphertext.length);
+  } finally {
+    if (previousBlobToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN;
+    else process.env.BLOB_READ_WRITE_TOKEN = previousBlobToken;
+  }
+});
+
+test("capsule lifecycle reserves a short id and completes the same link", async () => {
+  const redis = new FakeRedis();
+  const store = loadWithKvMock("../api/_lib/store", redis);
+  const pending = await store.initCapsule({ kind: "file-drop" });
+  assert.match(pending.id, /^[A-Za-z0-9]{8}$/);
+
+  const envelope = {
+    ciphertext: "ciphertext",
+    iv: "iv",
+    guards: [],
+    createdAt: Date.now(),
+  };
+  const saved = await store.completeCapsule(pending.id, envelope);
+  assert.equal(saved.id, pending.id);
+  assert.equal(saved.storage, "inline");
+  assert.deepEqual(await store.loadCapsule(pending.id, { consumeBurn: true }), envelope);
+});
+
+test("direct-upload callbacks are attached to pending capsules before completion", async () => {
+  const redis = new FakeRedis();
+  const store = loadWithKvMock("../api/_lib/store", redis);
+  const pending = await store.initCapsule({ kind: "file-drop" });
+  const count = await store.registerPendingBlob(pending.id, {
+    url: "https://example.public.blob.vercel-storage.com/encrypted.bin",
+    downloadUrl: "https://example.public.blob.vercel-storage.com/encrypted.bin?download=1",
+    pathname: `capsules/uploads/${pending.id}/encrypted.bin`,
+    size: 1234,
+    contentType: "application/octet-stream",
+  });
+  assert.equal(count, 1);
+  const record = await redis.get(`capsule:${pending.id}`);
+  assert.equal(record.uploads.length, 1);
+  assert.equal(record.uploads[0].size, 1234);
+});
+
+test("direct-uploaded capsule Blob can complete the reserved short link", async () => {
+  const redis = new FakeRedis();
+  const store = loadWithKvMock("../api/_lib/store", redis);
+  const pending = await store.initCapsule({ kind: "file-drop" });
+  const envelope = {
+    ciphertext: "ciphertext-from-direct-upload",
+    iv: "iv",
+    guards: ["burn-after-read"],
+    createdAt: Date.now(),
+  };
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    json: async () => envelope,
+  });
+
+  try {
+    const saved = await store.completeUploadedCapsule(pending.id, {
+      url: "https://example.public.blob.vercel-storage.com/envelope.json",
+      pathname: `capsules/uploads/${pending.id}/envelope.json`,
+      size: 4096,
+      contentType: "application/json",
+    });
+    assert.equal(saved.id, pending.id);
+    assert.equal(saved.storage, "blob");
+    const record = await redis.get(`capsule:${pending.id}`);
+    assert.equal(record.storage, "blob");
+    assert.equal(record.burnAfterRead, true);
+    assert.deepEqual(await store.loadCapsule(pending.id, { consumeBurn: true }), envelope);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("client sources retain secrets only on active receive routes and keep public fields stable", () => {
   const app = fs.readFileSync(path.join(ROOT, "app.js"), "utf8");
   const collections = fs.readFileSync(path.join(ROOT, "collections.js"), "utf8");

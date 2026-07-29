@@ -2,6 +2,16 @@
 
 Prompt Capsule is a browser-only encrypted prompt and file sharing app.
 
+## Product Model
+
+The app exposes one collection concept: **Collect**.
+
+- **Request from one person** creates a targeted one-response collection.
+- **Publish a secure form** creates a multi-response collection with limits and scheduling.
+
+Both presets use the same encrypted collection engine and API. The separate `/r/...`
+and `/f/...` public paths remain for compatibility.
+
 ## Link Format
 
 New prompt capsules use a **short link** with an 8-character id:
@@ -21,13 +31,18 @@ Legacy fragment links still work:
 https://example.com/?tab=receive#data=<base64url-envelope>&key=<base64url-key>
 ```
 
-**File Drop** uses the same short-link flow when the encrypted drop fits storage limits:
+**File Drop** uses the same short-link lifecycle:
 
-- **≤256 KB** — stored inline in KV (same as prompts).
-- **256 KB–~4.5 MB request limit** — ciphertext stored in **Vercel Blob**; KV holds only the blob pointer.
-- **Upload fails or drop too large** — falls back to a portable `.capsule.html` download plus an optional receive hint link (`?tab=receive&kind=file`).
+- `POST /api/c/init` reserves the short id and creates a pending KV record.
+- `POST /api/c/complete` activates that exact id with the encrypted envelope.
+- `POST /api/upload-token` issues scoped Vercel Blob upload tokens for direct encrypted payload uploads.
+- **Without Vercel Blob** — encrypted envelopes that fit the Vercel request limit are stored inline in KV.
+- **With Vercel Blob configured** — larger envelopes can be stored in Blob and KV holds only pointers.
+- **Upload fails or exceeds the active platform limit** — falls back to a portable `.capsule.html` download plus an optional receive hint link (`?tab=receive&kind=file`).
 
 File bytes are never stored in plaintext — only encrypted envelopes.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the end-to-end storage, upload, burn, and expiry model.
 
 ## Security Model
 
@@ -40,7 +55,7 @@ File bytes are never stored in plaintext — only encrypted envelopes.
 
 1. Push this repo and import it in [Vercel](https://vercel.com).
 2. In the project → **Storage** → create **Upstash Redis** (free tier) and link it to the project.
-3. For file drops over ~256 KB, also enable **Blob** storage on the same project (free tier). Vercel injects `BLOB_READ_WRITE_TOKEN` automatically.
+3. Optional: enable **Blob** storage on the same project for larger file-drop storage. Vercel injects `BLOB_READ_WRITE_TOKEN` automatically.
 4. Add a random `CRON_SECRET` project environment variable. Vercel sends it to the daily
    expired-Blob cleanup route as a Bearer token.
 5. Redeploy. Vercel injects Redis env vars automatically (often prefixed, e.g. `SPN_KV_REST_API_URL` — the API detects these).

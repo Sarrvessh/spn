@@ -6,9 +6,10 @@ const PACK_LIMIT = 25;
 const ATTACH_MAX_FILES = 5;
 const ATTACH_MAX_EACH = 2 * 1024 * 1024;
 const ATTACH_MAX_TOTAL = 5 * 1024 * 1024;
-/** Reliable short-link ceiling for photos, PDFs, zip (incompressible data). */
-const ATTACH_SHORT_LINK_SAFE_TOTAL = Math.floor(3.2 * 1024 * 1024);
 const ATTACH_EXT = /\.(jpe?g|png|gif|webp|pdf|txt|md|json|csv|zip)$/i;
+const DIRECT_UPLOAD_THRESHOLD = Math.floor(3.8 * 1024 * 1024);
+const VERCEL_BLOB_API_URL = "https://vercel.com/api/blob";
+const VERCEL_BLOB_API_VERSION = "12";
 
 const state = {
   promptResult: {
@@ -362,6 +363,21 @@ function formatBytes(size) {
   return `${(size / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+function pluralize(count, singular, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function fileKindLabel(item) {
+  const type = item.type || "";
+  const name = item.name || "";
+  if (type.startsWith("image/")) return "Image";
+  if (type === "application/pdf" || /\.pdf$/i.test(name)) return "PDF";
+  if (type.includes("zip") || /\.zip$/i.test(name)) return "ZIP";
+  if (type.includes("json") || /\.json$/i.test(name)) return "JSON";
+  if (type.startsWith("text/") || /\.(txt|md|csv)$/i.test(name)) return "Text";
+  return "File";
+}
+
 function isAllowedAttachment(file) {
   if (ATTACH_EXT.test(file.name)) return true;
   const type = file.type || "";
@@ -421,27 +437,15 @@ function getFileShareExpectation(totalBytes, fileCount) {
     };
   }
 
-  if (totalBytes <= ATTACH_SHORT_LINK_SAFE_TOTAL) {
+  if (totalBytes <= ATTACH_MAX_TOTAL) {
     return {
       mode: "short-link",
       budgetClass: "is-short-link",
       fillPct,
       countLabel,
       totalLabel,
-      message: "Short /c/ link — reliable for photos, PDFs, and zip.",
+      message: "Short /c/ link will be created for this drop.",
       createNote: "",
-    };
-  }
-
-  if (totalBytes <= ATTACH_MAX_TOTAL) {
-    return {
-      mode: "portable",
-      budgetClass: "is-portable",
-      fillPct,
-      countLabel,
-      totalLabel,
-      message: "Over ~3.2 MB for photos & zip — short link may fail. Download Capsule is reliable. Text/code may still work.",
-      createNote: "Download Capsule recommended for photos, PDFs, and zip at this size.",
     };
   }
 
@@ -555,7 +559,8 @@ function renderPendingAttachments() {
   state.pendingAttachments.forEach((item) => {
     const li = document.createElement("li");
     li.className = "attach-chip";
-    li.innerHTML = `<div class="attach-chip-info"><strong></strong><span></span></div>`;
+    li.innerHTML = `<span class="attach-chip-kind"></span><div class="attach-chip-info"><strong></strong><span></span></div>`;
+    li.querySelector(".attach-chip-kind").textContent = fileKindLabel(item);
     li.querySelector("strong").textContent = item.name;
     li.querySelector("span").textContent = formatBytes(item.size);
     const remove = document.createElement("button");
@@ -694,11 +699,11 @@ function readShortLinkId(pathname = window.location.pathname) {
   return fromHref ? fromHref[1] : null;
 }
 
-async function uploadCapsule(envelope) {
-  const res = await fetch("/api/c", {
+async function initializeCapsule(kind, expiresAt) {
+  const res = await fetch("/api/c/init", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ envelope }),
+    body: JSON.stringify({ kind, expiresAt: expiresAt || null }),
   });
   let payload = {};
   try {
@@ -707,8 +712,111 @@ async function uploadCapsule(envelope) {
     payload = {};
   }
   if (!res.ok) {
-    throw new Error(payload.error || "Could not store capsule for a short link.");
+    throw new Error(payload.error || "Could not initialize capsule.");
   }
+  return payload;
+}
+
+async function completeCapsuleUpload(id, envelope) {
+  const body = JSON.stringify({ id, envelope });
+  if (textEncoder.encode(body).byteLength > DIRECT_UPLOAD_THRESHOLD) {
+    return completeCapsuleViaBlobUpload(id, envelope);
+  }
+
+  const res = await fetch("/api/c/complete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+  });
+  let payload = {};
+  try {
+    payload = await res.json();
+  } catch {
+    payload = {};
+  }
+  if (res.status === 413) {
+    return completeCapsuleViaBlobUpload(id, envelope);
+  }
+  if (!res.ok) {
+    throw new Error(payload.error || "Short-link storage could not activate this capsule.");
+  }
+  return payload;
+}
+
+function blobStoreIdFromClientToken(clientToken) {
+  const parts = String(clientToken || "").split("_");
+  return parts[3] || "";
+}
+
+async function requestBlobClientToken(pathname, id) {
+  const res = await fetch("/api/upload-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type: "blob.generate-client-token",
+      payload: {
+        pathname,
+        clientPayload: JSON.stringify({ id }),
+        multipart: false,
+      },
+    }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(payload.error || "Blob direct upload is not configured.");
+  }
+  if (!payload.clientToken) {
+    throw new Error("Blob direct upload did not return a client token.");
+  }
+  return payload.clientToken;
+}
+
+async function uploadEnvelopeBlob(id, envelope) {
+  const pathname = `capsules/uploads/${id}/envelope.json`;
+  const body = JSON.stringify(envelope);
+  const clientToken = await requestBlobClientToken(pathname, id);
+  const storeId = blobStoreIdFromClientToken(clientToken);
+  const url = `${VERCEL_BLOB_API_URL}/?${new URLSearchParams({ pathname }).toString()}`;
+  const requestId = `${storeId || "store"}:${Date.now()}:${Math.random().toString(16).slice(2)}`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {
+      authorization: `Bearer ${clientToken}`,
+      "content-type": "application/json",
+      "x-api-blob-request-id": requestId,
+      "x-api-version": VERCEL_BLOB_API_VERSION,
+      "x-content-length": String(textEncoder.encode(body).byteLength),
+      "x-content-type": "application/json",
+      "x-vercel-blob-access": "public",
+      "x-vercel-blob-store-id": storeId,
+    },
+    body,
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const blobError = payload.error?.message || payload.error || "Blob direct upload failed.";
+    throw new Error(blobError);
+  }
+  return payload;
+}
+
+async function completeCapsuleViaBlobUpload(id, envelope) {
+  const blob = await uploadEnvelopeBlob(id, envelope);
+  const res = await fetch("/api/c/complete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, blob }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(payload.error || "Could not activate uploaded capsule.");
+  }
+  return payload;
+}
+
+async function uploadCapsule(envelope, options = {}) {
+  const pending = await initializeCapsule(options.kind || "capsule", envelope.expiresAt);
+  const payload = await completeCapsuleUpload(pending.id, envelope);
   return payload.id;
 }
 
@@ -755,23 +863,26 @@ function clearReceiveState({ clearStatus = true } = {}) {
 }
 
 function setScreen(screen) {
-  const screens = ["home", "prompt", "file", "receive", "request", "form"];
+  const screens = ["home", "prompt", "file", "receive", "collect", "request", "form"];
   const next = screens.includes(screen) ? screen : "home";
   const previous = state.screen;
   if (previous === "receive" && next !== "receive") {
     clearReceiveState();
   }
   state.screen = next;
+  document.body.dataset.screen = next;
 
   $("homeScreen")?.classList.toggle("is-hidden", next !== "home");
   $("promptScreen")?.classList.toggle("is-hidden", next !== "prompt");
   $("fileScreen")?.classList.toggle("is-hidden", next !== "file");
   $("receiveScreen")?.classList.toggle("is-hidden", next !== "receive");
+  $("collectScreen")?.classList.toggle("is-hidden", next !== "collect");
   $("requestScreen")?.classList.toggle("is-hidden", next !== "request");
   $("formScreen")?.classList.toggle("is-hidden", next !== "form");
 
   document.querySelectorAll(".mobile-nav-item[data-screen], .nav-links [data-screen]").forEach((el) => {
-    const active = el.getAttribute("data-screen") === next;
+    const target = el.getAttribute("data-screen");
+    const active = target === next || (target === "collect" && ["request", "form"].includes(next));
     el.classList.toggle("is-active", active);
     if (active) el.setAttribute("aria-current", "page");
     else el.removeAttribute("aria-current");
@@ -855,7 +966,7 @@ function clearFileResult() {
   $("fileDownloadCapsule").disabled = true;
   if (fileCreateSeal) fileCreateSeal.textContent = "—";
   if (fileResultHint) {
-    fileResultHint.textContent = "Up to ~3.2 MB total → short /c/ link. Larger drops use Download Capsule.";
+    fileResultHint.textContent = "Create a file capsule to get a short /c/ link. Download Capsule remains available as a backup.";
   }
   setFileResultMode("idle");
   updateFileLinkMeter();
@@ -917,8 +1028,67 @@ function updateKeySummary(hasInlineKey, passwordProtected = false) {
 }
 
 function setStatus(element, message, isError = false) {
+  if (!element) return;
   element.textContent = message;
   element.classList.toggle("error", isError);
+  element.classList.toggle("is-empty", !message);
+}
+
+function friendlyCapsuleError(error, fallback = "Could not open this capsule.") {
+  const message = String(error?.message || "");
+  if (/KV storage is not configured/i.test(message)) {
+    return "Short-link storage is not configured on this deployment.";
+  }
+  if (/Blob storage is not configured/i.test(message)) {
+    return "Blob storage is not configured for larger capsule links.";
+  }
+  if (/not found|expired/i.test(message)) {
+    return "This capsule link is expired, already burned, or no longer exists.";
+  }
+  if (/request limit|too large|413/i.test(message)) {
+    return "This capsule needs Blob direct upload before a short link can be created.";
+  }
+  if (/Failed to fetch|NetworkError|temporarily unavailable/i.test(message)) {
+    return "Capsule storage is temporarily unreachable. Check the deployment and try again.";
+  }
+  return message || fallback;
+}
+
+function markButtonCopied(button, label) {
+  if (!button) return;
+  const previous = button.textContent;
+  button.textContent = `${label} Copied`;
+  button.classList.add("is-confirmed");
+  window.setTimeout(() => {
+    button.textContent = previous;
+    button.classList.remove("is-confirmed");
+  }, 1400);
+}
+
+function updatePromptMeter() {
+  const userPrompt = $("userPrompt");
+  const charTarget = $("promptCharCount");
+  const variableTarget = $("promptVariableCount");
+  const securityTarget = $("promptSecurityPreview");
+  if (!userPrompt || !charTarget || !variableTarget || !securityTarget) return;
+
+  const text = userPrompt.value || "";
+  const variables = new Set(Array.from(text.matchAll(/\{\{\s*([\w.-]+)\s*\}\}/g), (match) => match[1]));
+  const activeGuards = [
+    $("burnAfterRead")?.checked,
+    $("passwordProtect")?.checked,
+    $("autoExpiry")?.checked,
+    $("scheduledUnlock")?.checked,
+  ].filter(Boolean).length;
+  charTarget.textContent = pluralize(text.length, "character");
+  variableTarget.textContent = pluralize(variables.size, "variable");
+  securityTarget.textContent = activeGuards ? pluralize(activeGuards, "guard") : "Key-only link";
+}
+
+function autoGrowTextarea(textarea) {
+  if (!textarea) return;
+  textarea.style.height = "auto";
+  textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
 function formatDate(value) {
@@ -1351,7 +1521,9 @@ async function openEnvelope(envelope, keyParam = "", password = "", operation = 
     if (envelope.kdf) passwordUnlock.classList.remove("is-hidden");
     setStatus(
       receiveStatus,
-      envelope.kdf ? "Wrong password or invalid capsule. Try again." : "Unable to decrypt this capsule.",
+      envelope.kdf
+        ? "That password did not unlock this capsule. Check the shared password and try again."
+        : "This capsule could not be decrypted with the key in the link.",
       true,
     );
     updateReceiveEmpty();
@@ -1401,7 +1573,7 @@ async function openFromShortPath() {
     await openEnvelope(envelope, keyParam, "", operationId);
   } catch (error) {
     if (operationId !== state.receiveOperation || state.screen !== "receive") return true;
-    setStatus(receiveStatus, error.message || "Could not open this capsule.", true);
+    setStatus(receiveStatus, friendlyCapsuleError(error), true);
     updateReceiveEmpty();
   }
   return true;
@@ -1482,10 +1654,11 @@ function downloadFile(filename, content, type = "application/json") {
   URL.revokeObjectURL(url);
 }
 
-async function copyText(text, statusElement, label) {
+async function copyText(text, statusElement, label, button = null) {
   try {
     await navigator.clipboard.writeText(text);
     setStatus(statusElement, `${label} copied.`);
+    markButtonCopied(button, label);
     return true;
   } catch {
     setStatus(statusElement, `Could not copy ${label.toLowerCase()}. Select and copy it manually.`, true);
@@ -1495,10 +1668,12 @@ async function copyText(text, statusElement, label) {
 
 passwordProtect.addEventListener("change", () => {
   passwordField.classList.toggle("is-hidden", !passwordProtect.checked);
+  updatePromptMeter();
 });
 
 autoExpiry.addEventListener("change", () => {
   expiryField.classList.toggle("is-hidden", !autoExpiry.checked);
+  updatePromptMeter();
 });
 
 scheduledUnlock.addEventListener("change", () => {
@@ -1508,7 +1683,10 @@ scheduledUnlock.addEventListener("change", () => {
     soon.setMinutes(soon.getMinutes() - soon.getTimezoneOffset());
     $("unlockAt").value = soon.toISOString().slice(0, 16);
   }
+  updatePromptMeter();
 });
+
+$("burnAfterRead")?.addEventListener("change", updatePromptMeter);
 
 filePasswordProtect?.addEventListener("change", () => {
   filePasswordField.classList.toggle("is-hidden", !filePasswordProtect.checked);
@@ -1597,7 +1775,7 @@ form.addEventListener("submit", async (event) => {
 
     let shareUrl;
     try {
-      const id = await uploadCapsule(encrypted.envelope);
+      const id = await uploadCapsule(encrypted.envelope, { kind: "prompt" });
       shareUrl = buildShortShareUrl(id, encrypted.keyParam);
     } catch (uploadError) {
       $("downloadCapsule").disabled = false;
@@ -1605,7 +1783,7 @@ form.addEventListener("submit", async (event) => {
       updateResultState();
       setStatus(
         createStatus,
-        `${uploadError.message} Download the portable capsule instead.`,
+        `${friendlyCapsuleError(uploadError, "Could not create a short link.")} Portable download is available as a backup.`,
         true,
       );
       return;
@@ -1682,7 +1860,7 @@ fileForm?.addEventListener("submit", async (event) => {
     const fileCount = capsule.attachments.length;
     const rawTotal = totalAttachmentSize(capsule.attachments);
     try {
-      const id = await uploadCapsule(encrypted.envelope);
+      const id = await uploadCapsule(encrypted.envelope, { kind: "file-drop" });
       fileShareLink.value = buildShortShareUrl(id, encrypted.keyParam);
       $("fileCopyLink").disabled = false;
       setFileResultMode("short-link");
@@ -1706,13 +1884,11 @@ fileForm?.addEventListener("submit", async (event) => {
       updateResultState();
       if (fileResultHint) {
         fileResultHint.textContent =
-          rawTotal > ATTACH_SHORT_LINK_SAFE_TOTAL
-            ? "This drop is too large for a short link. Send the .capsule.html file you download below."
-            : "Link storage unavailable. Send the downloaded .capsule.html file instead.";
+          "Short-link storage rejected this encrypted payload. Send the downloaded .capsule.html file instead.";
       }
       setStatus(
         fileStatus,
-        `${uploadError.message} Download and share the portable capsule instead.`,
+        `${friendlyCapsuleError(uploadError, "Could not create a short link.")} Portable download is available as a backup.`,
         true,
       );
       $("fileDownloadCapsule")?.focus({ preventScroll: true });
@@ -1755,15 +1931,15 @@ $("resetFile")?.addEventListener("click", () => {
   setStatus(fileStatus, "");
 });
 
-$("copyLink").addEventListener("click", () => copyText(shareLink.value, createStatus, "Link"));
+$("copyLink").addEventListener("click", (event) => copyText(shareLink.value, createStatus, "Link", event.currentTarget));
 $("fileCopyLink")?.addEventListener("click", () => {
   const url = fileShareLink.value.trim();
   if (isFileShortShareUrl(url)) {
-    copyText(url, fileStatus, "Link");
+    copyText(url, fileStatus, "Link", $("fileCopyLink"));
     return;
   }
   const message = `${url || buildReceiveOnlyUrl()}\n\nOpen this page, then use “Open Capsule file” with the .capsule.html you were sent.`;
-  copyText(message, fileStatus, "Receive link");
+  copyText(message, fileStatus, "Receive link", $("fileCopyLink"));
 });
 
 $("attachmentInput")?.addEventListener("change", async (event) => {
@@ -1790,6 +1966,14 @@ if (dropZone) {
     await addAttachmentFiles(event.dataTransfer?.files);
   });
 }
+
+document.addEventListener("paste", async (event) => {
+  if (state.screen !== "file") return;
+  const files = event.clipboardData?.files;
+  if (!files?.length) return;
+  event.preventDefault();
+  await addAttachmentFiles(files);
+});
 
 $("downloadCapsule").addEventListener("click", () => {
   const { envelope, keyParam } = state.promptResult;
@@ -1865,16 +2049,16 @@ $("receivePassword").addEventListener("keydown", async (event) => {
   await submitUnlock();
 });
 
-$("copyPrompt").addEventListener("click", () => {
-  if (state.currentCapsule) copyText(state.currentCapsule.userPrompt || "", receiveStatus, "Prompt");
+$("copyPrompt").addEventListener("click", (event) => {
+  if (state.currentCapsule) copyText(state.currentCapsule.userPrompt || "", receiveStatus, "Prompt", event.currentTarget);
 });
 
-$("copySystem").addEventListener("click", () => {
-  if (state.currentCapsule) copyText(state.currentCapsule.systemPrompt || "", receiveStatus, "System prompt");
+$("copySystem").addEventListener("click", (event) => {
+  if (state.currentCapsule) copyText(state.currentCapsule.systemPrompt || "", receiveStatus, "System prompt", event.currentTarget);
 });
 
-$("copyJson").addEventListener("click", () => {
-  if (state.currentCapsule) copyText(JSON.stringify(state.currentCapsule, null, 2), receiveStatus, "JSON");
+$("copyJson").addEventListener("click", (event) => {
+  if (state.currentCapsule) copyText(JSON.stringify(state.currentCapsule, null, 2), receiveStatus, "JSON", event.currentTarget);
 });
 
 $("downloadJson").addEventListener("click", () => {
@@ -1894,6 +2078,16 @@ window.addEventListener("hashchange", async () => {
   }
 });
 
+document.querySelectorAll("textarea").forEach((textarea) => {
+  autoGrowTextarea(textarea);
+  textarea.addEventListener("input", () => autoGrowTextarea(textarea));
+});
+
+["userPrompt", "systemPrompt", "variables", "expectedOutput", "notes"].forEach((id) => {
+  $(id)?.addEventListener("input", updatePromptMeter);
+});
+updatePromptMeter();
+
 async function bootApp() {
   const shortId = readShortLinkId();
   if (shortId) {
@@ -1911,7 +2105,7 @@ async function bootApp() {
   if (initialTab === "receive" || readFragment().has("data")) {
     setScreen("receive");
     await openFromUrl();
-  } else if (["prompt", "file", "request", "form"].includes(initialTab)) {
+  } else if (["prompt", "file", "collect", "request", "form"].includes(initialTab)) {
     setScreen(initialTab);
   } else {
     setScreen("home");

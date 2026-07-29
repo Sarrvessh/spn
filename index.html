@@ -23,8 +23,7 @@
         <button type="button" data-screen="home" class="nav-button">Home</button>
         <button type="button" data-screen="prompt" class="nav-button">Prompt</button>
         <button type="button" data-screen="file" class="nav-button">Files</button>
-        <button type="button" data-screen="request" class="nav-button">Requests</button>
-        <button type="button" data-screen="form" class="nav-button">Forms</button>
+        <button type="button" data-screen="collect" class="nav-button">Collect</button>
         <button type="button" data-screen="receive" class="nav-button">Receive</button>
       </div>
     </nav>
@@ -34,8 +33,26 @@
     <section id="homeScreen" class="screen">
       <div class="hero landing-hero" aria-labelledby="app-title">
         <h1 id="app-title">Capsule</h1>
-        <p class="hero-sub">Share prompts or files. Privately.</p>
+        <p class="hero-sub">Share something private. Let it disappear with intention.</p>
       </div>
+
+      <section class="home-editorial" aria-label="Capsule principles">
+        <article>
+          <span>01</span>
+          <h2>Send the work.</h2>
+          <p>A prompt with its settings. A file that should not linger. A request for details that belong in a sealed space.</p>
+        </article>
+        <article>
+          <span>02</span>
+          <h2>Keep the context.</h2>
+          <p>The receiver opens more than a link. They get the title, notes, guardrails, expiry, and integrity seal in one composed view.</p>
+        </article>
+        <article>
+          <span>03</span>
+          <h2>Let the trail fade.</h2>
+          <p>Burn-after-read, password protection, and time limits make every exchange feel temporary by design.</p>
+        </article>
+      </section>
 
       <section class="landing-tiles" aria-label="Get started">
         <button class="landing-tile" type="button" data-screen="prompt">
@@ -45,7 +62,7 @@
             </svg>
           </span>
           <strong>Prompt</strong>
-          <span>Encrypt a reproducible AI prompt into a private link.</span>
+          <span>Package an AI prompt with its context, settings, and notes so someone can open the exact version you meant to share.</span>
         </button>
         <button class="landing-tile" type="button" data-screen="file">
           <span class="landing-tile-icon" aria-hidden="true">
@@ -57,33 +74,36 @@
             </svg>
           </span>
           <strong>Files</strong>
-          <span>Up to 5 files · 2 MB each · short link or capsule</span>
+          <span>Send small, sensitive files through a clean encrypted drop with local previews, short links, and offline capsules.</span>
         </button>
-        <button class="landing-tile" type="button" data-screen="request">
+        <button class="landing-tile" type="button" data-screen="collect">
           <span class="landing-tile-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M7 4.75h10A1.75 1.75 0 0 1 18.75 6.5v11A1.75 1.75 0 0 1 17 19.25H7A1.75 1.75 0 0 1 5.25 17.5v-11A1.75 1.75 0 0 1 7 4.75Z" stroke="currentColor" stroke-width="1.5" />
               <path d="M8.75 9h6.5M8.75 12h6.5M8.75 15h3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
             </svg>
           </span>
-          <strong>Requests</strong>
-          <span>Collect one encrypted package of sensitive information.</span>
+          <strong>Collect</strong>
+          <span>Ask for private information without making people fight a form builder, login wall, or messy email thread.</span>
         </button>
-        <button class="landing-tile" type="button" data-screen="form">
+        <button class="landing-tile" type="button" data-screen="receive">
           <span class="landing-tile-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M5.25 6.5A1.75 1.75 0 0 1 7 4.75h10a1.75 1.75 0 0 1 1.75 1.75v11A1.75 1.75 0 0 1 17 19.25H7a1.75 1.75 0 0 1-1.75-1.75v-11Z" stroke="currentColor" stroke-width="1.5" />
-              <path d="M8.5 9.25h7M8.5 12h3M13 12h2.5M8.5 14.75h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+              <path d="M12 4.5v10M8.5 11 12 14.5 15.5 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                stroke-linejoin="round" />
+              <path d="M5 18.5h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
             </svg>
           </span>
-          <strong>Forms</strong>
-          <span>Run temporary encrypted forms with retention controls.</span>
+          <strong>Receive</strong>
+          <span>Open a shared capsule in a quiet reading space with clear security details before anything is revealed.</span>
         </button>
       </section>
 
-      <p class="landing-secondary">
-        <button class="text-button" type="button" data-screen="receive">Open a capsule</button>
-      </p>
+      <section class="landing-assurance" aria-label="Security principles">
+        <p><strong>Encrypted before it leaves.</strong> The link carries only what is needed to unlock the capsule.</p>
+        <p><strong>Designed to expire.</strong> Burn-after-read, passwords, and time limits keep access temporary.</p>
+        <p><strong>Built to feel calm.</strong> Every screen is focused on one private exchange at a time.</p>
+      </section>
     </section>
 
     <section id="promptScreen" class="screen is-hidden">
@@ -93,7 +113,6 @@
           <h2>Prompt</h2>
         </div>
       </section>
-
       <section id="createPanel" class="workspace" aria-labelledby="create-title">
         <form id="capsuleForm" class="editor">
           <div class="band">
@@ -124,7 +143,7 @@
           <div class="band">
             <div class="section-heading">
               <p>Prompt</p>
-              <h2>Content</h2>
+              <h2>Workspace</h2>
             </div>
             <label>
               <span>User Prompt</span>
@@ -136,12 +155,17 @@
               <textarea id="systemPrompt" name="systemPrompt" rows="4"
                 placeholder="You are a precise, concise technical writer."></textarea>
             </label>
+            <div class="composer-meter" id="promptMeter" aria-live="polite">
+              <span id="promptCharCount">0 characters</span>
+              <span id="promptVariableCount">0 variables</span>
+              <span id="promptSecurityPreview">Auto-expiry on</span>
+            </div>
           </div>
 
           <details class="advanced">
             <summary>
               <span>More options</span>
-              <span class="advanced-hint">Temperature, variables, notes</span>
+              <span class="advanced-hint">Model, variables, schema, notes</span>
             </summary>
             <div class="advanced-body">
               <div class="grid two compact">
@@ -278,7 +302,6 @@
           <h2>Files</h2>
         </div>
       </section>
-
       <section id="filePanel" class="workspace" aria-labelledby="file-title">
         <form id="fileForm" class="editor">
           <div class="band">
@@ -305,7 +328,7 @@
             </div>
             <p class="attach-hint">5 files max · 2 MB each · 5 MB total</p>
             <label class="drop-zone" id="dropZone">
-              <span class="drop-zone-title">Drop files here or browse</span>
+              <span class="drop-zone-title">Drop, paste, or browse</span>
               <span class="drop-zone-sub">Photos, PDF, txt, md, json, csv, zip</span>
               <input id="attachmentInput" type="file" multiple
                 accept="image/*,.pdf,.txt,.md,.json,.csv,.zip,application/pdf,application/json,application/zip,text/plain,text/markdown,text/csv" />
@@ -397,7 +420,7 @@
             <p>Share</p>
             <h2>Your drop</h2>
           </div>
-          <p class="result-lead">Short /c/ link up to ~3.2 MB. Larger drops use Download Capsule.</p>
+          <p class="result-lead">Short /c/ link for every drop within the app limits. Download Capsule stays as a backup.</p>
           <ul class="file-limits" aria-label="File limits">
             <li><strong>5</strong> files max</li>
             <li><strong>2 MB</strong> each</li>
@@ -419,7 +442,7 @@
           <div class="button-row secondary-actions">
             <button id="fileDownloadCapsule" class="secondary file-action-download" type="button" disabled>Download Capsule</button>
           </div>
-          <p class="result-hint" id="fileResultHint">Up to ~3.2 MB total → short /c/ link. Larger drops use Download Capsule.</p>
+          <p class="result-hint" id="fileResultHint">Create a file capsule to get a short /c/ link. Download Capsule remains available as a backup.</p>
           <p id="fileStatus" class="status"></p>
         </aside>
       </section>
@@ -439,6 +462,11 @@
             <span class="empty-icon" aria-hidden="true"></span>
             <h2 id="receive-title">Open a capsule</h2>
             <p id="receiveEmptyCopy">Open a prompt or file capsule. Decryption stays in your browser.</p>
+            <div class="receive-assurance" aria-label="Receive assurance">
+              <span>Local decrypt</span>
+              <span>Integrity seal</span>
+              <span>No account</span>
+            </div>
             <div class="empty-actions">
               <label class="file-button">
                 Open Capsule file
@@ -534,11 +562,39 @@
       </section>
     </section>
 
+    <section id="collectScreen" class="screen is-hidden">
+      <section class="workspace-header" aria-label="Collect workspace">
+        <div class="workspace-heading">
+          <button class="text-button back-home" type="button" data-screen="home">Home</button>
+          <h2>Collect</h2>
+        </div>
+      </section>
+      <section class="collect-presets" aria-label="Collection presets">
+        <div class="collect-intro">
+          <p class="eyebrow">Encrypted Collections</p>
+          <h2>Choose how you want to collect.</h2>
+          <p>Both presets use the same encrypted submission engine. Pick the shape that matches the job.</p>
+        </div>
+        <div class="collect-preset-grid">
+          <button class="collect-preset" type="button" data-screen="request">
+            <span>One recipient</span>
+            <strong>Request from one person</strong>
+            <small>Best for vendor packets, documents, verification, and one-off sensitive replies.</small>
+          </button>
+          <button class="collect-preset" type="button" data-screen="form">
+            <span>Multiple responses</span>
+            <strong>Publish a secure form</strong>
+            <small>Best for intake, reports, feedback, and workflows with response limits.</small>
+          </button>
+        </div>
+      </section>
+    </section>
+
     <section id="requestScreen" class="screen is-hidden">
       <section class="workspace-header" aria-label="Secure Requests workspace">
         <div class="workspace-heading">
-          <button class="text-button back-home" type="button" data-screen="home">Home</button>
-          <h2>Requests</h2>
+          <button class="text-button back-home" type="button" data-screen="collect">Collect</button>
+          <h2>Request from one person</h2>
         </div>
       </section>
       <div id="requestApp"></div>
@@ -547,8 +603,8 @@
     <section id="formScreen" class="screen is-hidden">
       <section class="workspace-header" aria-label="Secure Forms workspace">
         <div class="workspace-heading">
-          <button class="text-button back-home" type="button" data-screen="home">Home</button>
-          <h2>Forms</h2>
+          <button class="text-button back-home" type="button" data-screen="collect">Collect</button>
+          <h2>Publish a secure form</h2>
         </div>
       </section>
       <div id="formApp"></div>
@@ -578,6 +634,13 @@
       </svg>
       <span>Files</span>
     </button>
+    <button type="button" class="mobile-nav-item" data-screen="collect">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M7 4.75h10A1.75 1.75 0 0 1 18.75 6.5v11A1.75 1.75 0 0 1 17 19.25H7A1.75 1.75 0 0 1 5.25 17.5v-11A1.75 1.75 0 0 1 7 4.75Z" stroke="currentColor" stroke-width="1.5" />
+        <path d="M8.75 9h6.5M8.75 12h6.5M8.75 15h3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      </svg>
+      <span>Collect</span>
+    </button>
     <button type="button" class="mobile-nav-item" data-screen="receive">
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M12 4.5v10M8.5 11 12 14.5 15.5 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
@@ -585,20 +648,6 @@
         <path d="M5 18.5h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
       </svg>
       <span>Receive</span>
-    </button>
-    <button type="button" class="mobile-nav-item" data-screen="request">
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M7 4.75h10A1.75 1.75 0 0 1 18.75 6.5v11A1.75 1.75 0 0 1 17 19.25H7A1.75 1.75 0 0 1 5.25 17.5v-11A1.75 1.75 0 0 1 7 4.75Z" stroke="currentColor" stroke-width="1.5" />
-        <path d="M8.75 9h6.5M8.75 12h6.5M8.75 15h3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-      </svg>
-      <span>Requests</span>
-    </button>
-    <button type="button" class="mobile-nav-item" data-screen="form">
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M5.25 6.5A1.75 1.75 0 0 1 7 4.75h10a1.75 1.75 0 0 1 1.75 1.75v11A1.75 1.75 0 0 1 17 19.25H7a1.75 1.75 0 0 1-1.75-1.75v-11Z" stroke="currentColor" stroke-width="1.5" />
-        <path d="M8.5 9.25h7M8.5 12h3M13 12h2.5M8.5 14.75h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-      </svg>
-      <span>Forms</span>
     </button>
   </nav>
 

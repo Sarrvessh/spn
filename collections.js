@@ -569,11 +569,11 @@
     return !field.condition?.sourceFieldId || matchValue(values[field.condition.sourceFieldId], field.condition.operator, field.condition.value);
   }
   function showPublicCollectionScreen(kind) {
-    ["home", "prompt", "file", "receive", "request", "form"].forEach((screen) => {
+    ["home", "prompt", "file", "receive", "collect", "request", "form"].forEach((screen) => {
       document.getElementById(`${screen}Screen`)?.classList.toggle("is-hidden", screen !== kind);
     });
     document.querySelectorAll("[data-screen]").forEach((control) => {
-      const active = control.dataset.screen === kind;
+      const active = control.dataset.screen === kind || (control.dataset.screen === "collect" && ["request", "form"].includes(kind));
       control.classList.toggle("is-active", active);
       if (active) control.setAttribute("aria-current", "page");
       else control.removeAttribute("aria-current");
@@ -585,7 +585,7 @@
     if (!found) {
       leavePublicCollection();
       const tab = new URLSearchParams(window.location.search).get("tab");
-      const target = ["prompt", "file", "receive", "request", "form"].includes(tab) ? tab : "home";
+      const target = ["prompt", "file", "receive", "collect", "request", "form"].includes(tab) ? tab : "home";
       if (typeof setScreen === "function") setScreen(target);
       return false;
     }

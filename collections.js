@@ -21,7 +21,7 @@
   }
   const hashEmail = (value) => hashValue(String(value || "").trim().toLowerCase());
   const hashSecret = (value) => hashValue(String(value || ""));
-  function defaultField(kind, type = "short-text") {
+  function defaultLabel(kind, type) {
     const labels = {
       "short-text": kind === "request" ? "Requested information" : "Short answer",
       "long-text": "Detailed response",
@@ -40,8 +40,53 @@
       section: "Section heading",
       severity: "Severity",
     };
-    const label = labels[type] || "Response";
-    return { id: id(), type, label, description: type === "notice" ? "Sensitive values are encrypted before upload." : "", required: !["notice", "section"].includes(type), placeholder: "", options: ["Option 1", "Option 2"], validation: "", acceptedFileTypes: ".pdf,.png,.jpg,.jpeg", maxFileSizeMb: 5, maxFileCount: type === "multi-file" ? 5 : 1, sensitive: !["notice", "section"].includes(type), condition: { sourceFieldId: "", operator: "equals", value: "" } };
+    return labels[type] || "Response";
+  }
+  function isGenericLabel(kind, label) {
+    const text = String(label || "").trim();
+    if (!text) return true;
+    return fieldTypes.some(([type]) => {
+      const base = defaultLabel(kind, type);
+      return text === base || new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\d+$`).test(text);
+    });
+  }
+  function defaultField(kind, type = "short-text") {
+    return {
+      id: id(),
+      type,
+      label: defaultLabel(kind, type),
+      description: type === "notice" ? "Sensitive values are encrypted before upload." : "",
+      required: !["notice", "section"].includes(type),
+      placeholder: "",
+      options: ["Option 1", "Option 2"],
+      validation: "",
+      acceptedFileTypes: ".pdf,.png,.jpg,.jpeg",
+      maxFileSizeMb: 5,
+      maxFileCount: type === "multi-file" ? 5 : 1,
+      sensitive: !["notice", "section"].includes(type),
+      condition: { sourceFieldId: "", operator: "equals", value: "" },
+    };
+  }
+  function applyFieldType(kind, field, type) {
+    const next = fieldTypes.some(([value]) => value === type) ? type : "short-text";
+    const keepLabel = !isGenericLabel(kind, field.label);
+    field.type = next;
+    if (!keepLabel) field.label = defaultLabel(kind, next);
+    if (["notice", "section"].includes(next)) {
+      field.required = false;
+      field.sensitive = false;
+      if (next === "notice" && !field.description) {
+        field.description = "Sensitive values are encrypted before upload.";
+      }
+    } else if (field.required === undefined) {
+      field.required = true;
+    }
+    if (["dropdown", "radio", "checkboxes"].includes(next) && !(field.options || []).length) {
+      field.options = ["Option 1", "Option 2"];
+    }
+    if (next === "multi-file") field.maxFileCount = Math.max(Number(field.maxFileCount) || 1, 2);
+    if (next === "file") field.maxFileCount = 1;
+    return field;
   }
   async function encryptPayload(payload, keyParam, title, expiresAt = "") {
     const generated = keyParam ? null : await generateShareKey();
@@ -95,7 +140,10 @@
     ensure(kind);
     const c = cfg[kind], app = document.getElementById(c.appId);
     if (!app) return;
-    app.innerHTML = `<section class="workspace"><form id="${kind}CollectionForm" class="editor"><div class="band"><div class="section-heading"><p>${esc(c.title)}</p><h2>Details</h2></div><div class="grid two"><label><span>Title</span><input id="${kind}Title" required /></label><label><span>Category</span><select id="${kind}Category">${options(c.cats)}</select></label>${kind === "request" ? `<label><span>Recipient name</span><input id="${kind}RecipientName" /></label><label><span>Recipient email</span><input id="${kind}RecipientEmail" type="email" /></label><label><span>Submission deadline</span><input id="${kind}CloseAt" type="datetime-local" /></label>` : `<label><span>Opening date</span><input id="${kind}OpenAt" type="datetime-local" /></label><label><span>Closing date</span><input id="${kind}CloseAt" type="datetime-local" /></label><label><span>Maximum responses</span><input id="${kind}MaxResponses" type="number" min="1" value="25" /></label>`}</div><label><span>Description or instructions</span><textarea id="${kind}Description" rows="4"></textarea></label><label><span>Custom completion message</span><textarea id="${kind}Completion" rows="3"></textarea></label></div><div class="band"><div class="section-heading"><p>Shared builder</p><h2>Fields</h2></div><div class="grid two compact"><label><span>Field type</span><select id="${kind}FieldType">${fieldTypes.map(([v,l]) => `<option value="${v}">${esc(l)}</option>`).join("")}</select></label><label><span>Add field</span><button id="${kind}AddField" class="secondary" type="button">Add Field</button></label></div><div id="${kind}Fields" class="field-builder-list"></div></div><div class="band"><div class="section-heading"><p>Access</p><h2>Secure settings</h2></div><div class="guards"><label class="check"><input id="${kind}OneTime" type="checkbox" ${kind === "request" ? "checked" : ""} /><i></i><span><strong>${kind === "request" ? "Accept one submission" : "Limit this form to one response total"}</strong><small>${kind === "request" ? "Requests close after their single response" : "Leave off to accept responses up to the maximum"}</small></span></label><label class="check"><input id="${kind}AutoClose" type="checkbox" checked /><i></i><span><strong>Auto-close at response limit</strong><small>Close when the configured maximum is reached</small></span></label><label class="check"><input id="${kind}RequirePassword" type="checkbox" /><i></i><span><strong>Require password</strong><small>Recipient must enter the shared password</small></span></label><label class="check"><input id="${kind}RequireOtp" type="checkbox" /><i></i><span><strong>Require one-time code</strong><small>Use a separately shared verification code</small></span></label><label class="check"><input id="${kind}RequireConsent" type="checkbox" checked /><i></i><span><strong>Require consent before submission</strong><small>Validated by the server before encrypted upload</small></span></label>${kind === "form" ? `<label class="check"><input id="${kind}Anonymous" type="checkbox" /><i></i><span><strong>Anonymous submissions</strong><small>Do not collect identity automatically</small></span></label>` : ""}<label class="check"><input id="${kind}BurnAfterView" type="checkbox" checked /><i></i><span><strong>Burn after owner views</strong><small>Delete the server's encrypted payload after local reveal</small></span></label><label class="check"><input id="${kind}BurnAfterExport" type="checkbox" /><i></i><span><strong>Burn after export</strong><small>Delete the server's encrypted payload after archive download</small></span></label></div><div class="grid two security-options"><label><span>Allowed recipient email</span><input id="${kind}AllowedEmail" type="email" /></label><label><span>Access password (case-sensitive)</span><input id="${kind}AccessPassword" type="password" /></label><label><span>One-time code (case-sensitive)</span><input id="${kind}OtpCode" type="password" /></label><label><span>Retention rule</span><select id="${kind}Retention"><option value="view">After viewing</option><option value="export">After export</option><option value="86400000">24 hours</option><option value="604800000">7 days</option><option value="close">After close</option><option value="manual">Manual burn</option></select></label></div></div><div class="actions"><button class="primary" type="submit">${esc(c.action)}</button><button id="${kind}ResetCollection" class="secondary" type="button">Reset</button></div></form><aside class="result"><div class="section-heading"><p>Private link</p><h2>Encrypted ${kind}</h2></div><p class="result-lead">Configuration and submissions are encrypted. Link tokens are stored only as hashes.</p><label class="short-link-field"><span>Share link</span><input id="${kind}ShareLink" type="text" readonly /></label><div class="button-row"><button id="${kind}CopyLink" class="primary" type="button" disabled>Copy Link</button></div><p id="${kind}Status" class="status"></p><div class="section-heading" style="margin-top:24px"><p>Owner</p><h2>Dashboard</h2></div><div id="${kind}OwnerDashboard" class="owner-dashboard"></div></aside></section>`;
+    const detailExtras = kind === "request"
+      ? `<label><span>Recipient name</span><input id="${kind}RecipientName" placeholder="Optional" /></label><label><span>Recipient email</span><input id="${kind}RecipientEmail" type="email" placeholder="Optional" /></label><label><span>Submission deadline</span><input id="${kind}CloseAt" type="datetime-local" /></label>`
+      : `<label><span>Opening date</span><input id="${kind}OpenAt" type="datetime-local" /></label><label><span>Closing date</span><input id="${kind}CloseAt" type="datetime-local" /></label><label><span>Maximum responses</span><input id="${kind}MaxResponses" type="number" min="1" value="25" /></label>`;
+    app.innerHTML = `<section class="workspace collection-workspace"><form id="${kind}CollectionForm" class="editor collection-editor"><div class="band"><div class="builder-step"><span>1</span><div><p>${esc(c.title)}</p><h2>Basics</h2></div></div><p class="builder-lead">Name the ${kind} and tell recipients what you need.</p><div class="grid two"><label><span>Title</span><input id="${kind}Title" required placeholder="${kind === "request" ? "Vendor onboarding packet" : "Incident report"}" /></label><label><span>Category</span><select id="${kind}Category">${options(c.cats)}</select></label>${detailExtras}</div><label><span>Instructions</span><textarea id="${kind}Description" rows="3" placeholder="What should the recipient include?"></textarea></label><label><span>Completion message <small>optional</small></span><textarea id="${kind}Completion" rows="2" placeholder="Thanks — your encrypted reply was received."></textarea></label></div><div class="band"><div class="builder-step"><span>2</span><div><p>Questions</p><h2>What to collect</h2></div></div><p class="builder-lead">Add questions, then change each field’s type and label to match what you need.</p><div id="${kind}Fields" class="field-builder-list"></div><div class="field-add-bar"><label class="field-add-type"><span>New field type</span><select id="${kind}FieldType">${fieldTypes.map(([v,l]) => `<option value="${v}">${esc(l)}</option>`).join("")}</select></label><button id="${kind}AddField" class="secondary" type="button">Add field</button></div></div><div class="band collection-security"><div class="builder-step"><span>3</span><div><p>Access</p><h2>Sharing rules</h2></div></div><p class="builder-lead">Choose who can respond and how Capsule should retain encrypted replies.</p><div class="guards"><label class="check"><input id="${kind}OneTime" type="checkbox" ${kind === "request" ? "checked" : ""} /><i></i><span><strong>${kind === "request" ? "One submission only" : "Limit to one response total"}</strong><small>${kind === "request" ? "Requests close after the first reply" : "Leave off to accept responses up to the maximum"}</small></span></label><label class="check"><input id="${kind}AutoClose" type="checkbox" checked /><i></i><span><strong>Auto-close at response limit</strong><small>Close when the configured maximum is reached</small></span></label><label class="check"><input id="${kind}RequireConsent" type="checkbox" checked /><i></i><span><strong>Require consent</strong><small>Validated before encrypted upload</small></span></label>${kind === "form" ? `<label class="check"><input id="${kind}Anonymous" type="checkbox" /><i></i><span><strong>Anonymous submissions</strong><small>Do not collect identity automatically</small></span></label>` : ""}<label class="check"><input id="${kind}RequirePassword" type="checkbox" /><i></i><span><strong>Require password</strong><small>Recipient must enter the shared password</small></span></label><label class="check"><input id="${kind}RequireOtp" type="checkbox" /><i></i><span><strong>Require one-time code</strong><small>Use a separately shared verification code</small></span></label><label class="check"><input id="${kind}BurnAfterView" type="checkbox" checked /><i></i><span><strong>Burn after owner views</strong><small>Delete the server payload after local reveal</small></span></label><label class="check"><input id="${kind}BurnAfterExport" type="checkbox" /><i></i><span><strong>Burn after export</strong><small>Delete the server payload after archive download</small></span></label></div><div class="grid two security-options"><label><span>Allowed recipient email</span><input id="${kind}AllowedEmail" type="email" placeholder="Optional" /></label><label><span>Access password</span><input id="${kind}AccessPassword" type="password" autocomplete="new-password" /></label><label><span>One-time code</span><input id="${kind}OtpCode" type="password" autocomplete="off" /></label><label><span>Retention rule</span><select id="${kind}Retention"><option value="view">After viewing</option><option value="export">After export</option><option value="86400000">24 hours</option><option value="604800000">7 days</option><option value="close">After close</option><option value="manual">Manual burn</option></select></label></div></div><div class="actions"><button class="primary" type="submit">${esc(c.action)}</button><button id="${kind}ResetCollection" class="secondary" type="button">Reset</button></div></form><aside class="result collection-result"><div class="section-heading"><p>Share</p><h2>Encrypted link</h2></div><p class="result-lead">Create the ${kind}, then copy the private link. The decryption key stays in the URL fragment.</p><label class="short-link-field"><span>Share link</span><input id="${kind}ShareLink" type="text" readonly placeholder="Link appears after create" /></label><div class="button-row"><button id="${kind}CopyLink" class="primary" type="button" disabled>Copy Link</button></div><p id="${kind}Status" class="status"></p><div class="section-heading collection-owner-heading"><p>Owner</p><h2>Responses</h2></div><div id="${kind}OwnerDashboard" class="owner-dashboard"></div></aside></section>`;
     organizeCollectionSettings(kind);
     wire(kind); renderFields(kind); renderDashboard(kind);
   }
@@ -103,7 +151,6 @@
     const passwordToggle = document.getElementById(`${kind}RequirePassword`);
     const band = passwordToggle?.closest(".band");
     if (!band) return;
-    band.classList.add("collection-security");
 
     if (kind === "request") {
       const oneTime = document.getElementById(`${kind}OneTime`);
@@ -164,26 +211,71 @@
       if (sameTypeCount) field.label = `${field.label} ${sameTypeCount + 1}`;
       s[`${kind}Fields`].push(field);
       renderFields(kind);
+      const card = document.querySelector(`[data-field-id="${field.id}"]`);
+      card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      card?.querySelector('[data-field-prop="label"]')?.focus();
     });
     document.getElementById(`${kind}CopyLink`).addEventListener("click", () => copyCollectionText(document.getElementById(`${kind}ShareLink`).value, document.getElementById(`${kind}Status`), "Link"));
-    document.getElementById(`${kind}ResetCollection`).addEventListener("click", () => { s[`${kind}Fields`] = [defaultField(kind), defaultField(kind, "consent")]; s.public = null; renderWorkspace(kind); });
+    document.getElementById(`${kind}ResetCollection`).addEventListener("click", () => {
+      s[`${kind}Fields`] = kind === "request"
+        ? [defaultField(kind), defaultField(kind, "consent")]
+        : [defaultField(kind), defaultField(kind, "file"), defaultField(kind, "consent")];
+      s.public = null;
+      renderWorkspace(kind);
+    });
+  }
+  function updateFieldProp(kind, field, prop, input) {
+    if (prop === "type") {
+      applyFieldType(kind, field, input.value);
+      renderFields(kind);
+      return true;
+    }
+    if (prop === "options") {
+      field.options = input.value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+      return false;
+    }
+    if (prop.startsWith("condition")) {
+      if (!field.condition) field.condition = { sourceFieldId: "", operator: "equals", value: "" };
+      if (prop === "conditionSource") field.condition.sourceFieldId = input.value;
+      if (prop === "conditionOperator") field.condition.operator = input.value;
+      if (prop === "conditionValue") field.condition.value = input.value;
+      return false;
+    }
+    if (prop === "maxFileSizeMb" || prop === "maxFileCount") {
+      field[prop] = Number(input.value) || 1;
+      return false;
+    }
+    field[prop] = input.type === "checkbox" ? input.checked : input.value;
+    if (prop === "label") {
+      const title = input.closest(".field-card")?.querySelector(".field-card-title strong");
+      if (title) title.textContent = field.label || "Untitled field";
+    }
+    return false;
   }
   function renderFields(kind) {
     const fields = s[`${kind}Fields`], target = document.getElementById(`${kind}Fields`);
     if (!target) return;
     target.innerHTML = fields.map((field, index) => fieldCard(kind, field, index, fields)).join("");
-    target.querySelectorAll("[data-field-prop]").forEach((input) => input.addEventListener("input", () => {
-      const field = fields.find((item) => item.id === input.dataset.fieldId); if (!field) return;
-      const prop = input.dataset.fieldProp;
-      if (prop === "options") field.options = input.value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
-      else if (prop.startsWith("condition")) { if (!field.condition) field.condition = { sourceFieldId: "", operator: "equals", value: "" }; if (prop === "conditionSource") field.condition.sourceFieldId = input.value; if (prop === "conditionOperator") field.condition.operator = input.value; if (prop === "conditionValue") field.condition.value = input.value; }
-      else field[prop] = input.type === "checkbox" ? input.checked : input.value;
-    }));
+    const sync = (input) => {
+      const field = fields.find((item) => item.id === input.dataset.fieldId);
+      if (!field) return;
+      updateFieldProp(kind, field, input.dataset.fieldProp, input);
+    };
+    target.querySelectorAll("[data-field-prop]").forEach((input) => {
+      input.addEventListener("input", () => {
+        if (input.dataset.fieldProp === "type") return;
+        sync(input);
+      });
+      input.addEventListener("change", () => sync(input));
+    });
     target.querySelectorAll("[data-field-action]").forEach((button) => button.addEventListener("click", () => {
       const i = fields.findIndex((item) => item.id === button.dataset.fieldId); if (i < 0) return;
       const a = button.dataset.fieldAction;
       if (a === "delete") fields.splice(i, 1);
-      if (a === "duplicate") fields.splice(i + 1, 0, { ...fields[i], id: id() });
+      if (a === "duplicate") {
+        const copy = { ...fields[i], id: id(), options: [...(fields[i].options || [])], condition: { ...(fields[i].condition || {}) } };
+        fields.splice(i + 1, 0, copy);
+      }
       if (a === "up" && i > 0) fields.splice(i - 1, 0, fields.splice(i, 1)[0]);
       if (a === "down" && i < fields.length - 1) fields.splice(i + 1, 0, fields.splice(i, 1)[0]);
       renderFields(kind);
@@ -193,7 +285,13 @@
       card.addEventListener("dragstart", () => { dragged = card.dataset.fieldId; card.classList.add("is-dragging"); });
       card.addEventListener("dragend", () => card.classList.remove("is-dragging"));
       card.addEventListener("dragover", (event) => event.preventDefault());
-      card.addEventListener("drop", () => { if (!dragged || dragged === card.dataset.fieldId) return; const from = fields.findIndex((item) => item.id === dragged), to = fields.findIndex((item) => item.id === card.dataset.fieldId); fields.splice(to, 0, fields.splice(from, 1)[0]); renderFields(kind); });
+      card.addEventListener("drop", () => {
+        if (!dragged || dragged === card.dataset.fieldId) return;
+        const from = fields.findIndex((item) => item.id === dragged);
+        const to = fields.findIndex((item) => item.id === card.dataset.fieldId);
+        fields.splice(to, 0, fields.splice(from, 1)[0]);
+        renderFields(kind);
+      });
     });
   }
   function fieldCard(kind, field, index, fields) {
@@ -204,6 +302,7 @@
     const isFile = ["file", "multi-file"].includes(field.type);
     const isStructural = ["notice", "section"].includes(field.type);
     const sourceOptions = fields.filter((item) => item.id !== field.id && !["notice", "section"].includes(item.type)).map((item) => `<option value="${item.id}" ${field.condition?.sourceFieldId === item.id ? "selected" : ""}>${esc(item.label)}</option>`).join("");
+    const typeOptions = fieldTypes.map(([v, l]) => `<option value="${v}" ${field.type === v ? "selected" : ""}>${esc(l)}</option>`).join("");
     const advanced = [
       supportsValidation ? `<label><span>Validation pattern</span><input data-field-prop="validation" data-field-id="${field.id}" value="${esc(field.validation)}" placeholder="Example: [A-Z]{2}-[0-9]{4}" /></label>` : "",
       isFile ? `<label><span>Accepted file types</span><input data-field-prop="acceptedFileTypes" data-field-id="${field.id}" value="${esc(field.acceptedFileTypes)}" /></label><label><span>Max file size MB</span><input type="number" min="1" data-field-prop="maxFileSizeMb" data-field-id="${field.id}" value="${esc(field.maxFileSizeMb)}" /></label><label><span>Max file count</span><input type="number" min="1" data-field-prop="maxFileCount" data-field-id="${field.id}" value="${esc(field.maxFileCount)}" /></label>` : "",
@@ -211,7 +310,7 @@
     const switches = isStructural ? "" : `<div class="guards field-guards"><label class="check"><input type="checkbox" data-field-prop="required" data-field-id="${field.id}" ${field.required ? "checked" : ""} /><i></i><span><strong>Required</strong><small>Recipient must complete it</small></span></label><label class="check"><input type="checkbox" data-field-prop="sensitive" data-field-id="${field.id}" ${field.sensitive ? "checked" : ""} /><i></i><span><strong>Sensitive field</strong><small>Excluded from audit metadata</small></span></label></div>`;
     const condition = kind === "form" && !isStructural ? `<div class="field-options"><small>Conditional display</small><div class="condition-row"><label><span>Source field</span><select data-field-prop="conditionSource" data-field-id="${field.id}"><option value="">Always show</option>${sourceOptions}</select></label><label><span>Rule</span><select data-field-prop="conditionOperator" data-field-id="${field.id}">${ops.map(([v,l]) => `<option value="${v}" ${field.condition?.operator === v ? "selected" : ""}>${l}</option>`).join("")}</select></label><label><span>Value</span><input data-field-prop="conditionValue" data-field-id="${field.id}" value="${esc(field.condition?.value)}" /></label></div></div>` : "";
     const settings = `${advanced ? `<div class="grid two">${advanced}</div>` : ""}${switches}${condition}`;
-    return `<article class="field-card" draggable="true" data-field-id="${field.id}"><div class="field-card-header"><div class="field-card-title"><span class="field-index">${index + 1}</span><div><strong>${esc(field.label || typeLabel)}</strong><small>${esc(typeLabel)}${field.sensitive ? " · sensitive" : ""}</small></div></div><div class="mini-actions"><button class="icon-button" type="button" title="Move up" aria-label="Move field up" data-field-action="up" data-field-id="${field.id}">↑</button><button class="icon-button" type="button" title="Move down" aria-label="Move field down" data-field-action="down" data-field-id="${field.id}">↓</button><button class="mini-button" type="button" data-field-action="duplicate" data-field-id="${field.id}">Duplicate</button><button class="mini-button danger-text" type="button" data-field-action="delete" data-field-id="${field.id}">Delete</button></div></div><div class="field-core"><label><span>Field label</span><input data-field-prop="label" data-field-id="${field.id}" value="${esc(field.label)}" placeholder="${esc(typeLabel)}" /></label>${supportsPlaceholder ? `<label><span>Placeholder <small>optional</small></span><input data-field-prop="placeholder" data-field-id="${field.id}" value="${esc(field.placeholder)}" /></label>` : ""}</div><label><span>Helper text <small>optional</small></span><textarea rows="2" data-field-prop="description" data-field-id="${field.id}">${esc(field.description)}</textarea></label>${supportsOptions ? `<label><span>Options <small>one per line</small></span><textarea rows="3" data-field-prop="options" data-field-id="${field.id}">${esc((field.options || []).join("\n"))}</textarea></label>` : ""}${settings ? `<details class="field-card-settings"><summary>Field settings</summary><div class="field-settings-body">${settings}</div></details>` : ""}</article>`;
+    return `<article class="field-card" draggable="true" data-field-id="${field.id}"><div class="field-card-header"><div class="field-card-title"><span class="field-index">${index + 1}</span><div><strong>${esc(field.label || typeLabel)}</strong><small>${esc(typeLabel)}${field.sensitive ? " · sensitive" : ""}${field.required ? " · required" : ""}</small></div></div><div class="mini-actions"><button class="icon-button" type="button" title="Move up" aria-label="Move field up" data-field-action="up" data-field-id="${field.id}">↑</button><button class="icon-button" type="button" title="Move down" aria-label="Move field down" data-field-action="down" data-field-id="${field.id}">↓</button><button class="mini-button" type="button" data-field-action="duplicate" data-field-id="${field.id}">Duplicate</button><button class="mini-button danger-text" type="button" data-field-action="delete" data-field-id="${field.id}">Delete</button></div></div><div class="field-core"><label><span>Field type</span><select data-field-prop="type" data-field-id="${field.id}">${typeOptions}</select></label><label><span>Field label</span><input data-field-prop="label" data-field-id="${field.id}" value="${esc(field.label)}" placeholder="${esc(typeLabel)}" /></label>${supportsPlaceholder ? `<label><span>Placeholder <small>optional</small></span><input data-field-prop="placeholder" data-field-id="${field.id}" value="${esc(field.placeholder)}" /></label>` : ""}</div><label><span>Helper text <small>optional</small></span><textarea rows="2" data-field-prop="description" data-field-id="${field.id}">${esc(field.description)}</textarea></label>${supportsOptions ? `<label><span>Options <small>one per line</small></span><textarea rows="3" data-field-prop="options" data-field-id="${field.id}">${esc((field.options || []).join("\n"))}</textarea></label>` : ""}${settings ? `<details class="field-card-settings"><summary>More settings</summary><div class="field-settings-body">${settings}</div></details>` : ""}</article>`;
   }
   async function createCollection(event, kind) {
     event.preventDefault();

@@ -983,6 +983,82 @@ button:disabled {
   gap: var(--space-2);
 }
 
+.builder-step {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.builder-step > span {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(0, 113, 227, 0.1);
+  color: var(--blue);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.builder-step p {
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.builder-step h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.builder-lead {
+  margin: 0 0 var(--space-3);
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.field-add-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: end;
+  margin-top: var(--space-3);
+  padding: var(--space-2);
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  background: rgba(245, 245, 247, 0.7);
+}
+
+.field-add-bar .secondary {
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.collection-owner-heading {
+  margin-top: var(--space-4);
+}
+
+.collection-workspace .collection-editor .band:last-of-type {
+  border-bottom: 0;
+}
+
+.field-core {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.9fr) minmax(0, 1.1fr);
+  gap: var(--space-2);
+}
+
+.field-core > label:nth-child(n + 3) {
+  grid-column: 1 / -1;
+}
+
 .field-card,
 .collection-card,
 .submission-card,
@@ -1049,16 +1125,6 @@ button:disabled {
   color: var(--blue);
   font-size: 0.78rem;
   font-weight: 700;
-}
-
-.field-core {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-
-.field-core > label:only-child {
-  grid-column: 1 / -1;
 }
 
 .field-card label > span small {
@@ -1954,6 +2020,7 @@ pre {
 
   .grid.two,
   .field-core,
+  .field-add-bar,
   .unlock,
   .meta,
   .condition-row,

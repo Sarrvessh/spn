@@ -471,6 +471,9 @@ test("client sources retain secrets only on active receive routes and keep publi
   const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
 
   assert.match(app, /onCollectionLink[\s\S]*Keep active secure request\/form paths/);
+  assert.match(app, /new URLSearchParams\(\{ tab: "receive", id \}\)/);
+  assert.match(app, /readShortLinkId\(pathname = window\.location\.pathname, search = window\.location\.search\)/);
+  assert.ok(app.includes("/[?&]id=[A-Za-z0-9]{8}"));
   assert.match(app, /promptResult:\s*\{[\s\S]*fileResult:\s*\{/);
   assert.match(app, /strong\.textContent = title/);
   assert.doesNotMatch(app, /\$\{origin\}\/\$\{hash\}/);

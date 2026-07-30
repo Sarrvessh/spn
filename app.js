@@ -682,7 +682,8 @@ async function buildShareUrl(envelope, keyParam) {
 }
 
 function buildShortShareUrl(id, keyParam) {
-  const base = `${appRootUrl()}/c/${id}`;
+  const params = new URLSearchParams({ tab: "receive", id });
+  const base = `${appRootUrl()}?${params.toString()}`;
   if (!keyParam) return base;
   const fragment = new URLSearchParams({ key: keyParam });
   return `${base}#${fragment.toString()}`;
@@ -692,15 +693,24 @@ function buildReceiveOnlyUrl() {
   return `${appRootUrl()}?tab=receive&kind=file`;
 }
 
-function isShortLinkPath(pathname = window.location.pathname) {
-  return /\/c\/[A-Za-z0-9]{8}\/?$/.test(pathname);
+function isValidShortId(id) {
+  return /^[A-Za-z0-9]{8}$/.test(id || "");
 }
 
-function readShortLinkId(pathname = window.location.pathname) {
+function isShortLinkPath(pathname = window.location.pathname, search = window.location.search) {
+  if (/\/c\/[A-Za-z0-9]{8}\/?$/.test(pathname)) return true;
+  return isValidShortId(new URLSearchParams(search).get("id"));
+}
+
+function readShortLinkId(pathname = window.location.pathname, search = window.location.search) {
   const fromPath = pathname.match(/\/c\/([A-Za-z0-9]{8})\/?$/);
   if (fromPath) return fromPath[1];
+  const fromSearch = new URLSearchParams(search).get("id");
+  if (isValidShortId(fromSearch)) return fromSearch;
   const fromHref = window.location.href.match(/\/c\/([A-Za-z0-9]{8})(?:[/?#]|$)/);
-  return fromHref ? fromHref[1] : null;
+  if (fromHref) return fromHref[1];
+  const fromHrefQuery = window.location.href.match(/[?&]id=([A-Za-z0-9]{8})(?:[&#]|$)/);
+  return fromHrefQuery ? fromHrefQuery[1] : null;
 }
 
 async function initializeCapsule(kind, expiresAt) {
@@ -979,7 +989,7 @@ function clearFileResult() {
 
 function updateLinkMeter() {
   const value = shareLink.value.trim();
-  if (/\/c\/[A-Za-z0-9]{8}/.test(value)) {
+  if (isFileShortShareUrl(value)) {
     linkSize.textContent = "Short link · 8-char id";
     linkWarning.textContent = "";
     return;
@@ -992,7 +1002,7 @@ function updateLinkMeter() {
 function updateFileLinkMeter() {
   if (!fileShareLink || !fileLinkSize) return;
   const value = fileShareLink.value.trim();
-  if (/\/c\/[A-Za-z0-9]{8}/.test(value)) {
+  if (isFileShortShareUrl(value)) {
     fileLinkSize.textContent = "Short link · 8-char id";
     if (fileLinkWarning) fileLinkWarning.textContent = "";
     return;
@@ -1007,7 +1017,7 @@ function updateFileLinkMeter() {
 }
 
 function isFileShortShareUrl(value) {
-  return /\/c\/[A-Za-z0-9]{8}/.test(value || "");
+  return /\/c\/[A-Za-z0-9]{8}/.test(value || "") || /[?&]id=[A-Za-z0-9]{8}(?:[&#]|$)/.test(value || "");
 }
 
 function updateKeySummary(hasInlineKey, passwordProtected = false) {
@@ -1016,7 +1026,7 @@ function updateKeySummary(hasInlineKey, passwordProtected = false) {
     keySummary.textContent = "#key when available";
     return;
   }
-  if (/\/c\/[A-Za-z0-9]{8}/.test(shareLink.value)) {
+  if (isFileShortShareUrl(shareLink.value)) {
     keySummary.textContent = passwordProtected
       ? "password required"
       : hasInlineKey

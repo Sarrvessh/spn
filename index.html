@@ -330,7 +330,14 @@
               <h2>Attach</h2>
             </div>
             <p class="attach-hint">5 files max · 2 MB each · 5 MB total</p>
-            <label class="drop-zone" id="dropZone">
+            <label class="drop-zone" id="dropZone" aria-label="Drop, paste, or browse files">
+              <span class="drop-zone-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 15.5V4.75" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+                  <path d="M7.75 8.9 12 4.65l4.25 4.25" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M5 15.25v2.25a1.75 1.75 0 0 0 1.75 1.75h10.5A1.75 1.75 0 0 0 19 17.5v-2.25" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+                </svg>
+              </span>
               <span class="drop-zone-title">Drop, paste, or browse</span>
               <span class="drop-zone-sub">Photos, PDF, txt, md, json, csv, zip</span>
               <input id="attachmentInput" type="file" multiple

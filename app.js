@@ -670,22 +670,26 @@ function buildFileCapsule() {
   };
 }
 
+function appRootUrl() {
+  return new URL("/", window.location.href).toString().replace(/\/$/, "");
+}
+
 async function buildShareUrl(envelope, keyParam) {
-  const baseUrl = `${window.location.href.split("?")[0].split("#")[0]}?tab=receive`;
+  const baseUrl = `${appRootUrl()}?tab=receive`;
   const fragment = new URLSearchParams({ data: await encodeEnvelopePayload(envelope) });
   if (keyParam) fragment.set("key", keyParam);
   return `${baseUrl}#${fragment.toString()}`;
 }
 
 function buildShortShareUrl(id, keyParam) {
-  const base = `${window.location.origin}/c/${id}`;
+  const base = `${appRootUrl()}/c/${id}`;
   if (!keyParam) return base;
   const fragment = new URLSearchParams({ key: keyParam });
   return `${base}#${fragment.toString()}`;
 }
 
 function buildReceiveOnlyUrl() {
-  return `${window.location.href.split("?")[0].split("#")[0]}?tab=receive&kind=file`;
+  return `${appRootUrl()}?tab=receive&kind=file`;
 }
 
 function isShortLinkPath(pathname = window.location.pathname) {
@@ -1950,15 +1954,30 @@ $("attachmentInput")?.addEventListener("change", async (event) => {
 
 const dropZone = $("dropZone");
 if (dropZone) {
+  const isFileDrag = (event) => Array.from(event.dataTransfer?.types || []).includes("Files");
+
+  document.addEventListener("dragover", (event) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+  });
+
+  document.addEventListener("drop", (event) => {
+    if (!isFileDrag(event) || dropZone.contains(event.target)) return;
+    event.preventDefault();
+    dropZone.classList.remove("is-dragover");
+  });
+
   ["dragenter", "dragover"].forEach((type) => {
     dropZone.addEventListener(type, (event) => {
       event.preventDefault();
+      event.stopPropagation();
       dropZone.classList.add("is-dragover");
     });
   });
   ["dragleave", "drop"].forEach((type) => {
     dropZone.addEventListener(type, (event) => {
       event.preventDefault();
+      event.stopPropagation();
       dropZone.classList.remove("is-dragover");
     });
   });

@@ -7,17 +7,18 @@ the existing Vercel deployment instead. Public access to the Sites project was
 revoked; it is owner-private, not deleted or unpublished. The available Sites
 tools do not expose a deletion/unpublish operation. Do not republish it publicly.
 
-Vercel migration is prepared but not deployed. The user identified the existing
-project as `spn` in `sarrvesshs-projects`, with deployment hostname
-`spn-2tcdw9kps-sarrvesshs-projects.vercel.app` and dashboard deployment
-`8T4tKiFAoS3R17ghnLfqYgd4fEXD`. The Vercel integration is connected, but both
-project and deployment inspection return 403: the connection is not authorized
-for this team. Reconnect with access to `sarrvesshs-projects` before deploying.
-No CLI credentials or `.vercel/project.json` are available as a fallback.
-The signed-in Vercel dashboard independently confirms the repository link to
-`Sarrvessh/spn`, production branch `main`, and domain `capsule.sarveshpv.com`.
-GitHub push authentication was verified. Use the existing Git integration rather
-than creating a new Vercel project.
+Vercel production is live at https://capsule.sarveshpv.com in the existing
+`sarrvesshs-projects/spn` project. Release commit `3382bbf` was pushed to
+`Sarrvessh/spn` on `main`. Vercel automatically built it in 11 seconds and
+reported Ready / Production with the existing custom domain assigned.
+Deployment: `4iRQ6XqLUbgqzpbyaA8Xo1NZBLtL`.
+Build URL: https://spn-lclmss3gl-sarrvesshs-projects.vercel.app.
+
+The Vercel connector still returns 403 for this team; the authenticated browser
+and existing Git integration were used to verify and publish the release.
+No replacement project was created. Future main-branch pushes use this same
+Git integration. Do not treat the old immutable deployment hostname
+`spn-2tcdw9kps-sarrvesshs-projects.vercel.app` as the current production URL.
 
 The previous Sites URL was:
 https://capsule-private-sharing.sarrvessh.chatgpt.site
@@ -42,14 +43,17 @@ can open it. Share passwords separately.
 
 ## Evidence
 
-- 44 automated tests passed; build and syntax checks passed.
-- Browser verified prompt creation and direct-link decryption on `/open`.
+- 45 automated tests passed; build and syntax checks passed.
+- Live Vercel browser verified prompt creation and direct-link decryption on `/open`.
+- Live app has a white background, no desktop overflow and no captured console errors.
+- Live `/workspace`, `/send/prompt`, `/send/files` and `/open` return 200.
+- Live account API and `/.env` return 404; account-free CSP is present.
 - Browser verified selecting a synthetic attachment and local file encryption.
 - Download control ran, but the in-app browser did not expose a completion event;
   saved download bytes were not independently verified in that browser.
 - Mobile screenshot and DOM check: white background, 390px width, no horizontal overflow.
 - Desktop accessibility tree checked; final desktop screenshot capture failed.
-- Hosting reported deployment `succeeded` with the public URL above.
+- Vercel reported Ready / Production with the existing custom domain.
 
 ## Rebuild And Deploy To Vercel
 

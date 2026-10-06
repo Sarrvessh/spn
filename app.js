@@ -8,6 +8,8 @@ const ATTACH_MAX_EACH = 2 * 1024 * 1024;
 const ATTACH_MAX_TOTAL = 5 * 1024 * 1024;
 const ATTACH_EXT = /\.(jpe?g|png|gif|webp|pdf|txt|md|json|csv|zip)$/i;
 const DIRECT_UPLOAD_THRESHOLD = Math.floor(3.8 * 1024 * 1024);
+const ACCOUNT_FREE = window.CapsuleRelease?.accountFree === true;
+const INLINE_LINK_LIMIT = 12000;
 const VERCEL_BLOB_API_URL = "https://vercel.com/api/blob";
 const VERCEL_BLOB_API_VERSION = "12";
 
@@ -439,12 +441,12 @@ function getFileShareExpectation(totalBytes, fileCount) {
 
   if (totalBytes <= ATTACH_MAX_TOTAL) {
     return {
-      mode: "short-link",
-      budgetClass: "is-short-link",
+      mode: ACCOUNT_FREE ? "portable" : "short-link",
+      budgetClass: ACCOUNT_FREE ? "is-portable" : "is-short-link",
       fillPct,
       countLabel,
       totalLabel,
-      message: "Short /c/ link will be created for this drop.",
+      message: ACCOUNT_FREE ? "Encrypted file download will be created." : "Short /c/ link will be created for this drop.",
       createNote: "",
     };
   }
@@ -607,13 +609,13 @@ function renderViewAttachments(attachments) {
 function buildCapsule() {
   const expiryChoice = $("expiresIn").value;
   const expiresAt =
-    autoExpiry.checked && expiryChoice !== "never"
+    !ACCOUNT_FREE && autoExpiry.checked && expiryChoice !== "never"
       ? Date.now() + Number(expiryChoice)
       : null;
 
   const unlockInput = $("unlockAt").value;
   const unlockAt =
-    scheduledUnlock.checked && unlockInput
+    !ACCOUNT_FREE && scheduledUnlock.checked && unlockInput
       ? new Date(unlockInput).getTime()
       : null;
 
@@ -642,12 +644,12 @@ function buildCapsule() {
 function buildFileCapsule() {
   const expiryChoice = $("fileExpiresIn").value;
   const expiresAt =
-    fileAutoExpiry.checked && expiryChoice !== "never"
+    !ACCOUNT_FREE && fileAutoExpiry.checked && expiryChoice !== "never"
       ? Date.now() + Number(expiryChoice)
       : null;
   const unlockInput = $("fileUnlockAt").value;
   const unlockAt =
-    fileScheduledUnlock.checked && unlockInput
+    !ACCOUNT_FREE && fileScheduledUnlock.checked && unlockInput
       ? new Date(unlockInput).getTime()
       : null;
 
@@ -675,7 +677,7 @@ function appRootUrl() {
 }
 
 async function buildShareUrl(envelope, keyParam) {
-  const baseUrl = `${appRootUrl()}?tab=receive`;
+  const baseUrl = `${appRootUrl()}/open`;
   const fragment = new URLSearchParams({ data: await encodeEnvelopePayload(envelope) });
   if (keyParam) fragment.set("key", keyParam);
   return `${baseUrl}#${fragment.toString()}`;
@@ -731,15 +733,15 @@ async function initializeCapsule(kind, expiresAt) {
   return payload;
 }
 
-async function completeCapsuleUpload(id, envelope) {
+async function completeCapsuleUpload(id, envelope, ownerToken) {
   const body = JSON.stringify({ id, envelope });
   if (textEncoder.encode(body).byteLength > DIRECT_UPLOAD_THRESHOLD) {
-    return completeCapsuleViaBlobUpload(id, envelope);
+    return completeCapsuleViaBlobUpload(id, envelope, ownerToken);
   }
 
   const res = await fetch("/api/c/complete", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${ownerToken}` },
     body,
   });
   let payload = {};
@@ -749,7 +751,7 @@ async function completeCapsuleUpload(id, envelope) {
     payload = {};
   }
   if (res.status === 413) {
-    return completeCapsuleViaBlobUpload(id, envelope);
+    return completeCapsuleViaBlobUpload(id, envelope, ownerToken);
   }
   if (!res.ok) {
     throw new Error(payload.error || "Short-link storage could not activate this capsule.");
@@ -762,7 +764,7 @@ function blobStoreIdFromClientToken(clientToken) {
   return parts[3] || "";
 }
 
-async function requestBlobClientToken(pathname, id) {
+async function requestBlobClientToken(pathname, id, ownerToken) {
   const res = await fetch("/api/upload-token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -770,7 +772,7 @@ async function requestBlobClientToken(pathname, id) {
       type: "blob.generate-client-token",
       payload: {
         pathname,
-        clientPayload: JSON.stringify({ id }),
+        clientPayload: JSON.stringify({ id, ownerToken }),
         multipart: false,
       },
     }),
@@ -785,10 +787,10 @@ async function requestBlobClientToken(pathname, id) {
   return payload.clientToken;
 }
 
-async function uploadEnvelopeBlob(id, envelope) {
+async function uploadEnvelopeBlob(id, envelope, ownerToken) {
   const pathname = `capsules/uploads/${id}/envelope.json`;
   const body = JSON.stringify(envelope);
-  const clientToken = await requestBlobClientToken(pathname, id);
+  const clientToken = await requestBlobClientToken(pathname, id, ownerToken);
   const storeId = blobStoreIdFromClientToken(clientToken);
   const url = `${VERCEL_BLOB_API_URL}/?${new URLSearchParams({ pathname }).toString()}`;
   const requestId = `${storeId || "store"}:${Date.now()}:${Math.random().toString(16).slice(2)}`;
@@ -814,11 +816,11 @@ async function uploadEnvelopeBlob(id, envelope) {
   return payload;
 }
 
-async function completeCapsuleViaBlobUpload(id, envelope) {
-  const blob = await uploadEnvelopeBlob(id, envelope);
+async function completeCapsuleViaBlobUpload(id, envelope, ownerToken) {
+  const blob = await uploadEnvelopeBlob(id, envelope, ownerToken);
   const res = await fetch("/api/c/complete", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${ownerToken}` },
     body: JSON.stringify({ id, blob }),
   });
   const payload = await res.json().catch(() => ({}));
@@ -829,12 +831,21 @@ async function completeCapsuleViaBlobUpload(id, envelope) {
 }
 
 async function uploadCapsule(envelope, options = {}) {
+  window.dispatchEvent(new CustomEvent("capsule-upload-stage", { detail: "Reserving your private link…" }));
   const pending = await initializeCapsule(options.kind || "capsule", envelope.expiresAt);
-  const payload = await completeCapsuleUpload(pending.id, envelope);
+  try {
+    const items = loadRecentPack();
+    const item = items.find((entry) => entry.envelope?.id === envelope.id);
+    if (item) { item.hostedId = pending.id; item.ownerToken = pending.ownerToken; saveRecentPack(items); }
+  } catch { /* Hosted sharing remains usable when device storage is full. */ }
+  window.dispatchEvent(new CustomEvent("capsule-upload-stage", { detail: "Uploading encrypted content…" }));
+  const payload = await completeCapsuleUpload(pending.id, envelope, pending.ownerToken);
+  window.dispatchEvent(new CustomEvent("capsule-upload-stage", { detail: "Upload complete." }));
   return payload.id;
 }
 
 async function fetchCapsuleById(id) {
+  if (ACCOUNT_FREE) throw new Error("Hosted links are not supported in this edition. Ask the sender for an encrypted Capsule file or a new prompt link.");
   const res = await fetch(`/api/c/${encodeURIComponent(id)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -874,17 +885,20 @@ function clearReceiveState({ clearStatus = true } = {}) {
   }
   if (clearStatus) setStatus(receiveStatus, "");
   updateReceiveEmpty();
+
 }
 
-function setScreen(screen) {
-  const screens = ["home", "prompt", "file", "receive", "collect", "request", "form"];
-  const next = screens.includes(screen) ? screen : "home";
+function setScreen(screen, options = {}) {
+  const screens = Object.keys(CapsuleRoutes.paths);
+  const next = screens.includes(screen) && (!ACCOUNT_FREE || ["home", "prompt", "file", "receive"].includes(screen)) ? screen : "home";
   const previous = state.screen;
   if (previous === "receive" && next !== "receive") {
     clearReceiveState();
   }
   state.screen = next;
   document.body.dataset.screen = next;
+  document.body.dataset.recipient = String(CapsuleRoutes.resolve(window.location.href).recipient && options.preserveLink !== false);
+  document.title = `${({ home: "My Capsules", prompt: "Send a prompt", file: "Send files", collect: "Collect replies", request: "Request a reply", form: "Create a form", receive: "Open a capsule", login: "Sign in", signup: "Create account", forgot: "Recover account", reset: "Reset password", confirm: "Confirm email", account: "Account settings" })[next]} | Capsule`;
 
   $("homeScreen")?.classList.toggle("is-hidden", next !== "home");
   $("promptScreen")?.classList.toggle("is-hidden", next !== "prompt");
@@ -893,40 +907,35 @@ function setScreen(screen) {
   $("collectScreen")?.classList.toggle("is-hidden", next !== "collect");
   $("requestScreen")?.classList.toggle("is-hidden", next !== "request");
   $("formScreen")?.classList.toggle("is-hidden", next !== "form");
+  $("authScreen")?.classList.toggle("is-hidden", !CapsuleRoutes.authScreens.includes(next));
+  $("accountScreen")?.classList.toggle("is-hidden", next !== "account");
 
   document.querySelectorAll(".mobile-nav-item[data-screen], .nav-links [data-screen]").forEach((el) => {
     const target = el.getAttribute("data-screen");
-    const active = target === next || (target === "collect" && ["request", "form"].includes(next));
+    const active = CapsuleRoutes.group(target) === CapsuleRoutes.group(next);
     el.classList.toggle("is-active", active);
     if (active) el.setAttribute("aria-current", "page");
     else el.removeAttribute("aria-current");
   });
 
-  const path = window.location.pathname;
-  const hash = window.location.hash || "";
-  const currentParams = new URLSearchParams(window.location.search);
-  const onShortLink = isShortLinkPath(path);
-  const onCollectionLink = /^\/[rf]\/[A-Za-z0-9_-]{20,80}\/?$/.test(path);
-  const origin = window.location.origin;
-
-  if (next === "home") {
-    history.replaceState(null, "", `${origin}/`);
-  } else if (next === "receive" && onShortLink) {
-    // Keep /c/{id} path (and hash) for short share links.
-  } else if (
-    onCollectionLink
-    && ((next === "request" && /^\/r\//.test(path)) || (next === "form" && /^\/f\//.test(path)))
-  ) {
-    // Keep active secure request/form paths.
-  } else if (next === "receive") {
-    const params = new URLSearchParams({ tab: "receive" });
-    if (currentParams.get("kind") === "file") params.set("kind", "file");
-    history.replaceState(null, "", `${origin}/?${params.toString()}${hash}`);
-  } else {
-    history.replaceState(null, "", `${origin}/?tab=${next}`);
+  const route = CapsuleRoutes.resolve(window.location.href);
+  const onCollectionLink = route.recipient && Boolean(route.token);
+  if (options.preserveLink !== false && route.recipient && route.screen === next) {
+    // Keep active secure request/form paths and capsule fragments intact.
+  } else if (options.history !== "none") {
+    const destination = CapsuleRoutes.paths[next];
+    if (window.location.pathname + window.location.search + window.location.hash !== destination) {
+      history[options.history === "push" ? "pushState" : "replaceState"](null, "", destination);
+    }
   }
+  document.querySelectorAll("[data-send-tab]").forEach((tab) => {
+    const active = tab.dataset.screen === next;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-current", active ? "page" : "false");
+  });
   updateReceiveEmpty();
 
+  window.dispatchEvent(new Event("capsule-screen"));
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -966,7 +975,7 @@ function clearPromptResult() {
   $("copyLink").disabled = true;
   $("downloadCapsule").disabled = true;
   if (createSeal) createSeal.textContent = "—";
-  if (resultHint) resultHint.textContent = "Short link stored encrypted on the server. Key stays in the URL fragment.";
+  if (resultHint) resultHint.textContent = ACCOUNT_FREE ? "Your encrypted prompt link will appear here." : "Short link stored encrypted on the server. Key stays in the URL fragment.";
   updateLinkMeter();
   updateKeySummary(false);
   updateResultState();
@@ -980,7 +989,7 @@ function clearFileResult() {
   $("fileDownloadCapsule").disabled = true;
   if (fileCreateSeal) fileCreateSeal.textContent = "—";
   if (fileResultHint) {
-    fileResultHint.textContent = "Create a file capsule to get a short /c/ link. Download Capsule remains available as a backup.";
+    fileResultHint.textContent = ACCOUNT_FREE ? "Your encrypted file will be ready to download here." : "Create a file capsule to get a short /c/ link. Download Capsule remains available as a backup.";
   }
   setFileResultMode("idle");
   updateFileLinkMeter();
@@ -1145,12 +1154,15 @@ function saveRecentPack(items) {
   localStorage.setItem(PACK_STORAGE_KEY, JSON.stringify(items.slice(0, PACK_LIMIT)));
 }
 
-function rememberPackItem(envelope, keyParam) {
+function rememberPackItem(envelope, keyParam, shareUrl = "") {
   try {
+    const previous = loadRecentPack().find((item) => item.envelope?.id === envelope.id) || {};
     const items = loadRecentPack().filter((item) => item.envelope?.id !== envelope.id);
     items.unshift({
+      ...previous,
       envelope,
       key: keyParam || "",
+      shareUrl,
       savedAt: Date.now(),
     });
     saveRecentPack(items);
@@ -1724,7 +1736,8 @@ async function goScreen(screen) {
   const navigationId = ++state.navigationOperation;
   state.navigationInFlight = true;
   try {
-    setScreen(screen);
+    if (typeof window.resetCollectionPublicState === "function") window.resetCollectionPublicState();
+    setScreen(screen, { history: "push", preserveLink: false });
     if (screen === "receive") {
       if (isShortLinkPath()) await openFromShortPath();
       else await openFromUrl();
@@ -1736,15 +1749,13 @@ async function goScreen(screen) {
   }
 }
 
-document.querySelectorAll("[data-screen]").forEach((el) => {
-  el.addEventListener("click", async (event) => {
+document.addEventListener("click", async (event) => {
+    const el = event.target.closest("button[data-screen], a[data-screen]");
+    if (!el) return;
     const screen = el.getAttribute("data-screen");
     if (!screen) return;
-    if (el.tagName === "A" && screen === "home") {
-      event.preventDefault();
-    }
+    event.preventDefault();
     await goScreen(screen);
-  });
 });
 
 form.addEventListener("submit", async (event) => {
@@ -1755,6 +1766,7 @@ form.addEventListener("submit", async (event) => {
   setStatus(createStatus, "Encrypting capsule...");
 
   const password = passwordProtect.checked ? $("password").value : "";
+  if (ACCOUNT_FREE && passwordProtect.checked && password.length < 12) { setStatus(createStatus, "Use a password of at least 12 characters.", true); return; }
   if (passwordProtect.checked && !password) {
     setStatus(createStatus, "Password protection needs a password.", true);
     return;
@@ -1777,7 +1789,7 @@ form.addEventListener("submit", async (event) => {
 
     const encrypted = await encryptCapsule(capsule, {
       password,
-      burnAfterRead: $("burnAfterRead").checked,
+      burnAfterRead: !ACCOUNT_FREE && $("burnAfterRead").checked,
       expiresAt: capsule.expiresAt,
       unlockAt: capsule.unlockAt,
       label: $("label").value.trim(),
@@ -1787,10 +1799,25 @@ form.addEventListener("submit", async (event) => {
     state.promptResult.keyParam = encrypted.keyParam;
     rememberPackItem(encrypted.envelope, encrypted.keyParam);
 
+    if (ACCOUNT_FREE) {
+      const url = await buildShareUrl(encrypted.envelope, encrypted.keyParam);
+      const fits = url.length <= INLINE_LINK_LIMIT;
+      shareLink.value = fits ? url : "";
+      $("copyLink").disabled = !fits;
+      $("downloadCapsule").disabled = false;
+      if (createSeal) createSeal.textContent = encrypted.envelope.seal || "-";
+      if (fits) rememberPackItem(encrypted.envelope, encrypted.keyParam, url);
+      updateLinkMeter(); updateKeySummary(Boolean(encrypted.keyParam), Boolean(password)); updateResultState();
+      if (resultHint) resultHint.textContent = fits ? "Encrypted prompt link ready. Anyone with the link can open it unless a password is set." : "This prompt is too large for a reliable link. Share its encrypted Capsule file.";
+      setStatus(createStatus, fits ? "Your prompt link is ready." : "Encrypted capsule ready to download.");
+      return;
+    }
+
     let shareUrl;
     try {
       const id = await uploadCapsule(encrypted.envelope, { kind: "prompt" });
       shareUrl = buildShortShareUrl(id, encrypted.keyParam);
+      rememberPackItem(encrypted.envelope, encrypted.keyParam, shareUrl);
     } catch (uploadError) {
       $("downloadCapsule").disabled = false;
       if (createSeal) createSeal.textContent = encrypted.envelope.seal || "—";
@@ -1837,6 +1864,7 @@ fileForm?.addEventListener("submit", async (event) => {
   }
 
   const password = filePasswordProtect.checked ? $("filePassword").value : "";
+  if (ACCOUNT_FREE && filePasswordProtect.checked && password.length < 12) { setStatus(fileStatus, "Use a password of at least 12 characters.", true); return; }
   if (filePasswordProtect.checked && !password) {
     setStatus(fileStatus, "Password protection needs a password.", true);
     return;
@@ -1859,7 +1887,7 @@ fileForm?.addEventListener("submit", async (event) => {
 
     const encrypted = await encryptCapsule(capsule, {
       password,
-      burnAfterRead: $("fileBurnAfterRead").checked,
+      burnAfterRead: !ACCOUNT_FREE && $("fileBurnAfterRead").checked,
       expiresAt: capsule.expiresAt,
       unlockAt: capsule.unlockAt,
       label: $("fileLabel").value.trim(),
@@ -1871,11 +1899,20 @@ fileForm?.addEventListener("submit", async (event) => {
     $("fileDownloadCapsule").disabled = false;
     if (fileCreateSeal) fileCreateSeal.textContent = encrypted.envelope.seal || "—";
 
+    if (ACCOUNT_FREE) {
+      setFileResultMode("portable-fallback"); updateResultState();
+      if (fileResultHint) fileResultHint.textContent = "Encrypted Capsule file ready. Send the downloaded file to your recipient; share its password separately.";
+      setStatus(fileStatus, "Your encrypted file is ready to download.");
+      $("fileDownloadCapsule").focus({ preventScroll: true });
+      return;
+    }
+
     const fileCount = capsule.attachments.length;
     const rawTotal = totalAttachmentSize(capsule.attachments);
     try {
       const id = await uploadCapsule(encrypted.envelope, { kind: "file-drop" });
       fileShareLink.value = buildShortShareUrl(id, encrypted.keyParam);
+      rememberPackItem(encrypted.envelope, encrypted.keyParam, fileShareLink.value);
       $("fileCopyLink").disabled = false;
       setFileResultMode("short-link");
       updateFileLinkMeter();
@@ -1891,8 +1928,8 @@ fileForm?.addEventListener("submit", async (event) => {
       );
       $("fileCopyLink")?.focus({ preventScroll: true });
     } catch (uploadError) {
-      fileShareLink.value = buildReceiveOnlyUrl();
-      $("fileCopyLink").disabled = false;
+      fileShareLink.value = "";
+      $("fileCopyLink").disabled = true;
       setFileResultMode("portable-fallback");
       updateFileLinkMeter();
       updateResultState();
@@ -2122,6 +2159,14 @@ document.querySelector("[data-scroll-home]")?.addEventListener("click", () => {
 updatePromptMeter();
 
 async function bootApp() {
+  const transfer = CapsuleRoutes.resolve(window.location.href).transfer;
+  if (transfer) {
+    setScreen("receive");
+    if (ACCOUNT_FREE) { setStatus(receiveStatus, "This link requires the account-based edition. Ask the sender for an encrypted Capsule file.", true); return; }
+    await window.openTransferRoute?.(transfer);
+    return;
+  }
+  if (!/^\/[rf]\/[A-Za-z0-9_-]{20,80}\/?$/.test(window.location.pathname)) window.resetCollectionPublicState?.();
   const shortId = readShortLinkId();
   if (shortId) {
     await openFromShortPath();
@@ -2131,21 +2176,35 @@ async function bootApp() {
   const collectionMatch = window.location.pathname.match(/^\/([rf])\/[A-Za-z0-9_-]{20,80}\/?$/);
   if (collectionMatch) {
     setScreen(collectionMatch[1] === "r" ? "request" : "form");
+    if (window.openCollectionPath) await window.openCollectionPath();
     return;
   }
 
-  const initialTab = new URLSearchParams(window.location.search).get("tab");
+  const initialTab = CapsuleRoutes.resolve(window.location.href).screen;
   if (initialTab === "receive" || readFragment().has("data")) {
     setScreen("receive");
     await openFromUrl();
-  } else if (["prompt", "file", "collect", "request", "form"].includes(initialTab)) {
-    setScreen(initialTab);
+  } else if (Object.hasOwn(CapsuleRoutes.paths, initialTab) && initialTab !== "home") {
+    setScreen(initialTab, { history: "none" });
   } else {
     setScreen("home");
   }
 }
 
 bootApp();
+window.addEventListener("popstate", bootApp);
+$("openLinkForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const url = new URL($("incomingLink").value.trim(), window.location.origin);
+    const route = CapsuleRoutes.resolve(url.href);
+    if (!route.recipient || url.origin !== window.location.origin) {
+      throw new Error("Paste a Capsule link from this site, or open the original link in your browser.");
+    }
+    history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    await bootApp();
+  } catch (error) { setStatus(receiveStatus, error.message, true); }
+});
 
 updateLinkMeter();
 updateFileLinkMeter();

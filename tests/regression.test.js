@@ -442,14 +442,11 @@ test("direct-uploaded capsule Blob can complete the reserved short link", async 
     createdAt: Date.now(),
   };
   const originalFetch = global.fetch;
-  global.fetch = async () => ({
-    ok: true,
-    json: async () => envelope,
-  });
+  global.fetch = async () => new Response(JSON.stringify(envelope));
 
   try {
     const saved = await store.completeUploadedCapsule(pending.id, {
-      url: "https://example.public.blob.vercel-storage.com/envelope.json",
+      url: `https://example.public.blob.vercel-storage.com/capsules/uploads/${pending.id}/envelope.json`,
       pathname: `capsules/uploads/${pending.id}/envelope.json`,
       size: 4096,
       contentType: "application/json",
@@ -463,6 +460,38 @@ test("direct-uploaded capsule Blob can complete the reserved short link", async 
   } finally {
     global.fetch = originalFetch;
   }
+});
+
+test("legacy upload completion rejects arbitrary fetch URLs before network access", async () => {
+  const store = loadWithKvMock("../api/_lib/store", new FakeRedis());
+  const pending = await store.initCapsule({ kind: "file-drop" });
+  const oldFetch = global.fetch; let called = false;
+  global.fetch = async () => { called = true; throw new Error("unexpected network access"); };
+  try {
+    for (const url of ["http://127.0.0.1/private", "https://attacker.example/file", "https://example.public.blob.vercel-storage.com/wrong-path"]) {
+      await assert.rejects(store.completeUploadedCapsule(pending.id, { url, pathname: `capsules/uploads/${pending.id}/envelope.json` }), { code: "UPLOAD_MISMATCH" });
+    }
+    assert.equal(called, false);
+  } finally { global.fetch = oldFetch; }
+});
+
+test("sessions rotate an HttpOnly cookie without returning refresh tokens and reject CSRF", async () => {
+  const names = ["SUPABASE_URL","SUPABASE_ANON_KEY","PUBLIC_APP_URL"];
+  const previous = Object.fromEntries(names.map((key) => [key,process.env[key]]));
+  process.env.SUPABASE_URL = "https://identity.invalid"; process.env.SUPABASE_ANON_KEY = "test"; process.env.PUBLIC_APP_URL = "https://capsule.example";
+  const handler = loadWithKvMock("../api/session",new FakeRedis());
+  const oldFetch = global.fetch; const calls = [];
+  global.fetch = async (url,init) => { calls.push({url,body:JSON.parse(init.body)}); return new Response(JSON.stringify({access_token:"short-lived",refresh_token:"rotate-me",expires_in:900,user:{id:"user-a",email:"a@example.test"}})); };
+  const request = (body,headers = {}) => ({method:"POST",headers:{origin:"https://capsule.example",...headers},body});
+  try {
+    const denied = mockResponse(); await handler(request({action:"login",email:"a@example.test",password:"strong test password"},{origin:"https://evil.example"}),denied); assert.equal(denied.statusCode,403); assert.equal(calls.length,0);
+    const login = mockResponse(); await handler(request({action:"login",email:"a@example.test",password:"strong test password"}),login);
+    assert.equal(login.statusCode,200); assert.equal(login.body.refresh_token,undefined); assert.match(login.headers["Set-Cookie"],/HttpOnly; SameSite=Strict; Path=\/api\/session/); assert.match(login.headers["Set-Cookie"],/Secure/);
+    const refresh = mockResponse(); await handler(request({action:"refresh"},{cookie:"capsule_refresh=old-token"}),refresh);
+    assert.equal(calls.at(-1).body.refresh_token,"old-token"); assert.equal(refresh.body.access_token,"short-lived");
+    const signup = mockResponse(); await handler(request({action:"signup",email:"a@example.test",password:"strong test password"}),signup); assert.equal(new URL(calls.at(-1).url).pathname,"/auth/v1/signup"); assert.equal(new URL(calls.at(-1).url).searchParams.get("redirect_to"),"https://capsule.example/auth/confirm");
+    const weak = mockResponse(); await handler(request({action:"signup",email:"a@example.test",password:"short"}),weak); assert.equal(weak.statusCode,400);
+  } finally { global.fetch = oldFetch; for (const key of names) { if (previous[key] === undefined) delete process.env[key]; else process.env[key]=previous[key]; } }
 });
 
 test("client sources retain secrets only on active receive routes and keep public fields stable", () => {
@@ -486,4 +515,77 @@ test("client sources retain secrets only on active receive routes and keep publi
     collections,
     /renderPublicFields\(readValues\(false\)\.values\)/,
   );
+});
+
+test("email verification, recovery links and resends use Supabase without returning refresh credentials", async () => {
+  const names = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "PUBLIC_APP_URL"];
+  const previous = Object.fromEntries(names.map((key) => [key, process.env[key]]));
+  Object.assign(process.env, { SUPABASE_URL:"https://identity.invalid", SUPABASE_ANON_KEY:"test", PUBLIC_APP_URL:"https://capsule.example" });
+  const handler = loadWithKvMock("../api/session", new FakeRedis()), oldFetch = global.fetch, calls = [];
+  global.fetch = async (url, init) => { calls.push({url,body:JSON.parse(init.body || "{}"),headers:init.headers}); const user = {id:"a",email:"a@example.test",email_confirmed_at:"2026-01-01"}; return new Response(JSON.stringify(init.method === "GET" ? user : {access_token:"access",refresh_token:"secret-refresh",user})); };
+  const invoke = async (body, headers = {}) => { const res = mockResponse(); await handler({method:"POST",headers:{origin:"https://capsule.example",...headers},body},res); return res; };
+  try {
+    assert.equal((await invoke({action:"verify",type:"recovery",tokenHash:"a".repeat(64)})).statusCode, 200);
+    assert.deepEqual(calls.at(-1).body, {type:"recovery",token_hash:"a".repeat(64)});
+    const exchanged = await invoke({action:"exchange",refreshToken:"a-valid-refresh-token"}); assert.equal(exchanged.body.refresh_token, undefined); assert.match(exchanged.headers["Set-Cookie"], /HttpOnly/);
+    assert.equal((await invoke({action:"verify",type:"arbitrary",tokenHash:"a".repeat(64)})).statusCode, 400);
+    assert.equal((await invoke({action:"update-password",password:"strong new password"})).statusCode, 401);
+    assert.equal((await invoke({action:"update-password",password:"strong new password"},{authorization:"Bearer access"})).statusCode, 200);
+    await invoke({action:"recover",email:"a@example.test"}); assert.equal(new URL(calls.at(-1).url).searchParams.get("redirect_to"),"https://capsule.example/auth/confirm");
+    const resent = await invoke({action:"resend",email:"a@example.test"}); assert.equal(resent.statusCode,200); assert.equal(calls.at(-1).body.type,"signup");
+    const malformed = await invoke("not json"); assert.equal(malformed.statusCode,400);
+    const guest = await invoke({action:"refresh"}); assert.equal(guest.body.signedIn,false);
+    delete process.env.SUPABASE_URL;
+    const logout = await invoke({action:"logout"}); assert.equal(logout.statusCode,200); assert.match(logout.headers["Set-Cookie"],/Max-Age=0/);
+  } finally { global.fetch = oldFetch; for (const name of names) { if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name]; } }
+});
+
+test("an authentication upstream outage is not misreported as invalid credentials", async () => {
+  const previousUrl = process.env.SUPABASE_URL, previousKey = process.env.SUPABASE_ANON_KEY, oldFetch = global.fetch;
+  process.env.SUPABASE_URL = "https://identity.invalid"; process.env.SUPABASE_ANON_KEY = "test";
+  global.fetch = async () => new Response("upstream failed", {status:503});
+  try { await assert.rejects(require("../api/_lib/account").auth("token", {}), {status:503}); }
+  finally { global.fetch = oldFetch; if (previousUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = previousUrl; if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey; }
+});
+
+test("capsule owner credential is independent, hashed, and required to revoke", async () => {
+  const redis = new FakeRedis();
+  const store = loadWithKvMock("../api/_lib/store", redis);
+  const pending = await store.initCapsule();
+  const owner = await redis.get(`capsule-owner:${pending.id}`);
+  assert.notEqual(owner.hash, pending.ownerToken);
+  const envelope = { ciphertext: "private-encrypted", iv: "iv", createdAt: Date.now(), guards: [] };
+  await store.completeCapsule(pending.id, envelope);
+  await assert.rejects(store.manageCapsule(pending.id, "recipient-key", "revoke"), /Owner access/);
+  assert.deepEqual(await store.loadCapsule(pending.id), envelope);
+  const status = await store.manageCapsule(pending.id, pending.ownerToken);
+  assert.equal(status.status, "active");
+  assert.ok(!JSON.stringify(status).includes("private-encrypted"));
+  assert.equal((await store.manageCapsule(pending.id, pending.ownerToken, "revoke")).status, "revoked");
+  assert.equal(await store.loadCapsule(pending.id), null);
+});
+
+test("owner status reports burn without consuming a capsule", async () => {
+  const redis = new FakeRedis(), store = loadWithKvMock("../api/_lib/store", redis);
+  const pending = await store.initCapsule();
+  await store.completeCapsule(pending.id, { ciphertext: "opaque", iv: "iv", createdAt: Date.now(), guards: ["burn-after-read"] });
+  assert.equal((await store.manageCapsule(pending.id, pending.ownerToken)).status, "active");
+  assert.ok(await redis.get(`capsule:${pending.id}`));
+  await store.loadCapsule(pending.id, { consumeBurn: true });
+  assert.equal((await store.manageCapsule(pending.id, pending.ownerToken)).status, "burned");
+});
+
+test("cloud workspace isolates users and rejects stale revisions", async () => {
+  const redis = new FakeRedis(), handler = loadWithKvMock("../api/account", redis);
+  const originalFetch = global.fetch, previousUrl = process.env.SUPABASE_URL, previousKey = process.env.SUPABASE_ANON_KEY;
+  process.env.SUPABASE_URL = "https://auth.example.test"; process.env.SUPABASE_ANON_KEY = "public-test-key";
+  global.fetch = async (_url, init) => ({ ok: true, json: async () => ({ id: init.headers.Authorization === "Bearer user-a" ? "user-a" : "user-b", email: "verified@example.test", email_confirmed_at: "2026-01-01" }) });
+  const invoke = async (token, body) => { const response = mockResponse(); await handler({ method: "POST", headers: { authorization: `Bearer ${token}` }, body }, response); return response; };
+  try {
+    const encrypted = { format: "capsule-workspace", version: 1, salt: "a".repeat(22), iv: "b".repeat(16), ciphertext: "ciphertext" };
+    assert.equal((await invoke("user-a", { action: "save", revision: 0, encrypted })).statusCode, 200);
+    assert.equal((await invoke("user-a", { action: "save", revision: 0, encrypted })).statusCode, 409);
+    assert.equal((await invoke("user-b", { action: "load" })).body.revision, 0);
+    assert.deepEqual((await invoke("user-a", { action: "load" })).body.encrypted, encrypted);
+  } finally { global.fetch = originalFetch; if (previousUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = previousUrl; if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey; }
 });

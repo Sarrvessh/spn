@@ -1,22 +1,25 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "node scripts/build-guest.cjs",
+  "installCommand": "",
+  "outputDirectory": "guest-release/dist",
   "rewrites": [
     {
-      "source": "/c/:id([A-Za-z0-9]{8})",
+      "source": "/workspace",
       "destination": "/index.html"
     },
     {
-      "source": "/r/:token([A-Za-z0-9_-]{20,80})",
+      "source": "/send/prompt",
       "destination": "/index.html"
     },
     {
-      "source": "/f/:token([A-Za-z0-9_-]{20,80})",
+      "source": "/send/files",
       "destination": "/index.html"
-    }
-  ],
-  "crons": [
+    },
     {
-      "path": "/api/cron/cleanup-blobs",
-      "schedule": "0 3 * * *"
+      "source": "/open",
+      "destination": "/index.html"
     }
   ],
   "headers": [
@@ -25,7 +28,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.public.blob.vercel-storage.com https://*.blob.vercel-storage.com; connect-src 'self' https://vercel.com https://blob.vercel-storage.com https://*.blob.vercel-storage.com https://*.public.blob.vercel-storage.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
         },
         {
           "key": "Referrer-Policy",
@@ -34,6 +37,10 @@
         {
           "key": "X-Content-Type-Options",
           "value": "nosniff"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000"
         },
         {
           "key": "Permissions-Policy",

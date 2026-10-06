@@ -99,6 +99,13 @@
     return { keyParam: finalKey, envelope: { id: id("env"), iv: bytesToBase64Url(iv), ciphertext, pack: packed.pack, label: "prod", guards: ["auto-expiry"], createdAt: Date.now(), expiresAt, alg: "AES-256-GCM", title, seal: await integritySeal(ciphertext) } };
   }
   async function api(url, init = {}) {
+    const destination = new URL(url, location.origin);
+    const owner = destination.searchParams.get("owner");
+    if (owner) {
+      destination.searchParams.delete("owner");
+      url = destination.pathname + destination.search;
+      init = { ...init, headers: { ...init.headers, Authorization: `Bearer ${owner}` } };
+    }
     let res;
     try {
       res = await fetch(url, init);
@@ -129,6 +136,9 @@
     return match ? { kind: match[1] === "r" ? "request" : "form", token: match[2] } : null;
   }
   function ensure(kind) {
+    if (!s[`${kind}Fields`].length) {
+      try { const draft = JSON.parse(localStorage.getItem(`capsule-collection-draft:${kind}`) || "null"); if (Array.isArray(draft?.fields) && draft.fields.length) s[`${kind}Fields`] = draft.fields; } catch { /* Fresh draft. */ }
+    }
     if (!s[`${kind}Fields`].length) {
       s[`${kind}Fields`] = kind === "request"
         ? [defaultField(kind), defaultField(kind, "consent")]
@@ -203,6 +213,28 @@
     });
   }
   function wire(kind) {
+    const editor = document.getElementById(`${kind}CollectionForm`);
+    try {
+      const draft = JSON.parse(localStorage.getItem(`capsule-collection-draft:${kind}`) || "null");
+      for (const [id, value] of Object.entries(draft?.values || {})) { const field = document.getElementById(id); if (field && editor.contains(field) && field.type !== "password") { if (field.type === "checkbox") field.checked = Boolean(value); else field.value = value; } }
+    } catch { /* Invalid device data is ignored. */ }
+    const saveDraft = () => {
+      const values = {};
+      editor.querySelectorAll("input[id],textarea[id],select[id]").forEach((field) => { if (!["password", "file"].includes(field.type)) values[field.id] = field.type === "checkbox" ? field.checked : field.value; });
+      try { localStorage.setItem(`capsule-collection-draft:${kind}`, JSON.stringify({ fields: s[`${kind}Fields`], values })); } catch { /* Editing remains available. */ }
+    };
+    editor.saveCapsuleDraft = saveDraft;
+    editor.addEventListener("input", saveDraft); editor.addEventListener("change", saveDraft);
+    const picker = document.createElement("label"); picker.className = "template-picker";
+    picker.innerHTML = `<span>Start from a template</span><select><option value="">Choose a template</option><option value="documents">Document request</option><option value="feedback">Private feedback</option></select>`;
+    editor.prepend(picker);
+    picker.querySelector("select").addEventListener("change", (event) => {
+      if (!event.target.value || !confirm("Replace the current questions with this template?")) { event.target.value = ""; return; }
+      const documents = event.target.value === "documents";
+      s[`${kind}Fields`] = (documents ? [["short-text", "Your name"], ["multi-file", "Requested documents"], ["long-text", "Additional context"], ["consent", "I consent to share these documents"]] : [["long-text", "Your feedback"], ["severity", "Priority"], ["consent", "I consent to submit this feedback"]]).map(([type, label]) => ({ ...defaultField(kind, type), label }));
+      document.getElementById(`${kind}Title`).value = documents ? "Private document request" : "Confidential feedback";
+      renderFields(kind); saveDraft(); event.target.value = "";
+    });
     document.getElementById(`${kind}CollectionForm`).addEventListener("submit", (event) => createCollection(event, kind));
     document.getElementById(`${kind}AddField`).addEventListener("click", () => {
       const type = document.getElementById(`${kind}FieldType`).value;
@@ -217,6 +249,7 @@
     });
     document.getElementById(`${kind}CopyLink`).addEventListener("click", () => copyCollectionText(document.getElementById(`${kind}ShareLink`).value, document.getElementById(`${kind}Status`), "Link"));
     document.getElementById(`${kind}ResetCollection`).addEventListener("click", () => {
+      localStorage.removeItem(`capsule-collection-draft:${kind}`);
       s[`${kind}Fields`] = kind === "request"
         ? [defaultField(kind), defaultField(kind, "consent")]
         : [defaultField(kind), defaultField(kind, "file"), defaultField(kind, "consent")];
@@ -293,6 +326,7 @@
         renderFields(kind);
       });
     });
+    document.getElementById(`${kind}CollectionForm`)?.saveCapsuleDraft?.();
   }
   function fieldCard(kind, field, index, fields) {
     const typeLabel = fieldTypes.find(([v]) => v === field.type)?.[1] || field.type;
@@ -569,27 +603,16 @@
     return !field.condition?.sourceFieldId || matchValue(values[field.condition.sourceFieldId], field.condition.operator, field.condition.value);
   }
   function showPublicCollectionScreen(kind) {
-    ["home", "prompt", "file", "receive", "collect", "request", "form"].forEach((screen) => {
-      document.getElementById(`${screen}Screen`)?.classList.toggle("is-hidden", screen !== kind);
-    });
-    document.querySelectorAll("[data-screen]").forEach((control) => {
-      const active = control.dataset.screen === kind || (control.dataset.screen === "collect" && ["request", "form"].includes(kind));
-      control.classList.toggle("is-active", active);
-      if (active) control.setAttribute("aria-current", "page");
-      else control.removeAttribute("aria-current");
-    });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setScreen(kind);
   }
   async function openPublicPath() {
     const found = pathInfo();
     if (!found) {
       leavePublicCollection();
-      const tab = new URLSearchParams(window.location.search).get("tab");
-      const target = ["prompt", "file", "receive", "collect", "request", "form"].includes(tab) ? tab : "home";
-      if (typeof setScreen === "function") setScreen(target);
       return false;
     }
     showPublicCollectionScreen(found.kind);
+    document.body.dataset.recipient = "true";
     const app = document.getElementById(cfg[found.kind].appId);
     s.public = { kind: found.kind, token: found.token };
     app.innerHTML = `<section class="public-shell"><div class="empty-state"><h2>Opening ${esc(cfg[found.kind].title)}</h2><p>Fetching encrypted configuration...</p></div></section>`;
@@ -597,10 +620,12 @@
       const keyParam = readFragment().get("key") || "";
       if (!keyParam) throw new Error("Missing URL key fragment.");
       const remote = await api(`/api/collections/${encodeURIComponent(found.token)}`);
+      if (pathInfo()?.token !== found.token || s.public?.token !== found.token) return false;
       const template = await decryptCapsule(remote.encryptedTemplate, keyParam, "");
+      if (pathInfo()?.token !== found.token || s.public?.token !== found.token) return false;
       s.public = { ...found, keyParam, remote, template };
       renderPublic();
-    } catch (error) { app.innerHTML = `<section class="public-shell"><div class="empty-state"><h2>Secure link unavailable</h2><p>${esc(error.message || "Invalid, expired, or revoked link.")}</p></div></section>`; }
+    } catch (error) { if (pathInfo()?.token === found.token && s.public?.token === found.token) app.innerHTML = `<section class="public-shell"><div class="empty-state"><h2>Secure link unavailable</h2><p>${esc(error.message || "Invalid, expired, or revoked link.")}</p></div></section>`; }
     return true;
   }
   function renderPublic() {
@@ -736,6 +761,8 @@
     ctx.submitting = true;
     submitButton.disabled = true;
     try {
+      const accountToken = ctx.remote.publicPolicy?.requireEmailVerification ? await window.CapsuleAccount?.token() : "";
+      if (ctx.remote.publicPolicy?.requireEmailVerification && !accountToken) throw new Error("Sign in with the allowed, confirmed email address under My Capsules, then return to this request.");
       const attachments = [], normalized = {};
       for (const field of ctx.template.fields) {
         if (!Object.prototype.hasOwnProperty.call(values, field.id)) continue;
@@ -754,7 +781,7 @@
       const encrypted = await encryptPayload({ kind: "collection-submission", submittedAt: new Date().toISOString(), values: normalized, attachments }, ctx.keyParam, "Encrypted submission");
       const requestBody = JSON.stringify({ encryptedPayload: encrypted.envelope, consentVerified: consentGiven, verification: { emailHash: await hashEmail(document.getElementById("publicVerifyEmail")?.value || ""), passwordHash: await hashSecret(document.getElementById("publicAccessPassword")?.value || ""), otpHash: await hashSecret(document.getElementById("publicOtp")?.value || ""), consent: consentGiven, consentVerified: consentGiven } });
       if (new Blob([requestBody]).size > MAX_COLLECTION_REQUEST_BYTES) throw new Error("The encrypted submission exceeds the upload limit. Remove one or more files and try again.");
-      const result = await api(`/api/collections/${encodeURIComponent(ctx.token)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: requestBody });
+      const result = await api(`/api/collections/${encodeURIComponent(ctx.token)}`, { method: "POST", headers: { "Content-Type": "application/json", ...(accountToken ? { Authorization: `Bearer ${accountToken}` } : {}) }, body: requestBody });
       document.getElementById("publicCollectionForm").innerHTML = `<div class="band receipt-box"><strong>${esc(ctx.template.completionMessage || "Your encrypted submission was received.")}</strong><p>Receipt ID: ${esc(result.receiptId)}</p><p>Submitted: ${esc(formatDate(result.submittedAt))}</p><p>Status: encrypted and stored</p></div>`;
     } catch (error) {
       ctx.submitting = false;
@@ -780,26 +807,12 @@
     renderWorkspace("form");
   }
   window.resetCollectionPublicState = leavePublicCollection;
+  window.openCollectionPath = openPublicPath;
   function init() {
     renderWorkspace("request");
     renderWorkspace("form");
-    document.addEventListener("click", (event) => {
-      const navigation = event.target.closest("[data-screen]");
-      if (navigation && s.public) {
-        const next = navigation.dataset.screen || "home";
-        leavePublicCollection();
-        history.replaceState(
-          null,
-          "",
-          next === "home"
-            ? `${window.location.origin}/`
-            : `${window.location.origin}/?tab=${encodeURIComponent(next)}`,
-        );
-      }
-    }, true);
     openPublicPath();
   }
   window.addEventListener("hashchange", openPublicPath);
-  window.addEventListener("popstate", openPublicPath);
   init();
 })();

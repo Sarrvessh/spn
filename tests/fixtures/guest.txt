@@ -1,0 +1,2 @@
+Capsule account-free release fixture.
+This is synthetic test content, not user data.

@@ -1,6 +1,6 @@
 const { isValidId, envelopeByteSize, MAX_FILE_BYTES } = require("../_lib/capsule");
 const { isKvConfigured } = require("../_lib/kv");
-const { completeCapsule, completeUploadedCapsule } = require("../_lib/store");
+const { completeCapsule, completeUploadedCapsule, manageCapsule } = require("../_lib/store");
 
 module.exports = async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
@@ -23,6 +23,10 @@ module.exports = async function handler(req, res) {
   const envelope = body?.envelope;
   const uploadedBlob = body?.blob;
   if (!isValidId(id)) return res.status(400).json({ error: "Invalid capsule id." });
+  try {
+    const owner = await manageCapsule(id, (req.headers.authorization || "").replace(/^Bearer /, ""));
+    if (owner.status !== "pending") return res.status(409).json({ error: "Upload session is not pending." });
+  } catch { return res.status(403).json({ error: "Upload owner access required." }); }
   if (uploadedBlob) {
     try {
       const saved = await completeUploadedCapsule(id, uploadedBlob);

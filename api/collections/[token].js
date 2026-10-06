@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { user: verifiedUser } = require("../_lib/account");
 const { envelopeByteSize, MAX_FILE_BYTES, clientIp, checkRateLimit } = require("../_lib/capsule");
 const { getKv, isKvConfigured, withRedisLock } = require("../_lib/kv");
 const {
@@ -134,7 +135,7 @@ async function handler(req, res) {
       const record = await kv.get(key);
       if (!record) throw requestError(404, "Secure link not found or expired.");
 
-      const ownerToken = req.query.owner || "";
+      const ownerToken = (req.headers.authorization || "").replace(/^Bearer /, "") || req.query.owner || "";
       const isOwner = Boolean(ownerToken) && hashToken(ownerToken) === record.ownerHash;
       const retentionBurned = applyRetention(record);
 
@@ -160,8 +161,9 @@ async function handler(req, res) {
 
         const verification = body.verification || {};
         const policy = record.publicPolicy || {};
+        const identity = policy.allowedEmailHash ? await verifiedUser(req) : null;
         const verificationFailed =
-          (policy.allowedEmailHash && verification.emailHash !== policy.allowedEmailHash) ||
+          (policy.allowedEmailHash && hashToken(identity.email.trim().toLowerCase()) !== policy.allowedEmailHash) ||
           (policy.requirePassword && verification.passwordHash !== policy.accessPasswordHash) ||
           (policy.requireOtp && verification.otpHash !== policy.otpHash) ||
           (policy.requireConsent && verification.consent !== true);
@@ -186,6 +188,10 @@ async function handler(req, res) {
         applyRetention(record);
         await save(kv, key, record);
         const storedItem = record.submissions.find((submission) => submission.id === item.id);
+          try {
+            await require("../_lib/notifications").enqueueNotification(record, item.receiptId);
+            await require("../_lib/notifications").deliverNotifications();
+          } catch { /* Delivery must not turn an accepted submission into an upload failure. */ }
         return {
           status: 201,
           payload: { receiptId: item.receiptId, submittedAt, status: storedItem?.status || item.status },

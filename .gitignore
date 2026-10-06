@@ -1,3 +1,8 @@
 /.cursor
 /node_modules
+/.env
+/.env.*
+!/.env.example
+/.vercel
+/guest-release
 /Product Requirements Document (PRD).md

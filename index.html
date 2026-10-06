@@ -10,27 +10,31 @@
   <title>Prompt Capsule</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/favicon.svg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/workspace.css" />
+  <link rel="stylesheet" href="/transfers.css" />
+  <link rel="stylesheet" href="/accounts.css" />
 </head>
 
 <body>
+  <a class="skip-link" href="#mainContent">Skip to content</a>
   <header class="topbar">
     <nav class="nav-inner" aria-label="Main">
+      <a class="app-brand" href="/workspace" data-screen="home"><img src="/favicon.svg" alt="" width="28" height="28" />Capsule</a>
       <div class="nav-links" aria-label="Sections">
-        <button type="button" data-screen="home" class="nav-button">Home</button>
-        <button type="button" data-screen="prompt" class="nav-button">Prompt</button>
-        <button type="button" data-screen="file" class="nav-button">Files</button>
+        <button type="button" data-screen="home" class="nav-button">My Capsules</button>
+        <button type="button" data-screen="prompt" class="nav-button">Send</button>
         <button type="button" data-screen="collect" class="nav-button">Collect</button>
-        <button type="button" data-screen="receive" class="nav-button">Receive</button>
+        <button type="button" data-screen="receive" class="nav-button">Open</button>
       </div>
     </nav>
   </header>
 
-  <main class="shell">
+  <main class="shell" id="mainContent" tabindex="-1">
+    <nav class="send-tabs" aria-label="Send type"><button type="button" data-screen="prompt" data-send-tab>Prompt</button><button type="button" data-screen="file" data-send-tab>Files</button></nav>
+    <nav class="collection-tabs" aria-label="Collection type"><button type="button" data-screen="collect">All collection types</button><button type="button" data-screen="request" data-send-tab>Single reply</button><button type="button" data-screen="form" data-send-tab>Multiple replies</button></nav>
     <section id="homeScreen" class="screen">
+      <section id="capsuleWorkspace" aria-label="My Capsules"></section>
       <div class="hero landing-hero" aria-labelledby="app-title">
         <h1 id="app-title">Capsule</h1>
         <p class="hero-sub">Share something private. Let it disappear with intention.</p>
@@ -113,7 +117,7 @@
       <section class="workspace-header" aria-label="Prompt workspace">
         <div class="workspace-heading">
           <button class="text-button back-home" type="button" data-screen="home">Home</button>
-          <h2>Prompt</h2>
+          <h2>Send a prompt</h2>
         </div>
       </section>
       <section id="createPanel" class="workspace" aria-labelledby="create-title">
@@ -210,7 +214,7 @@
                 <i aria-hidden="true"></i>
                 <span>
                   <strong>Burn after read</strong>
-                  <small>Destroy the sender copy after first view</small>
+                  <small>Remove the hosted capsule after the first open</small>
                 </span>
               </label>
               <label class="check">
@@ -218,7 +222,7 @@
                 <i aria-hidden="true"></i>
                 <span>
                   <strong>Password protect</strong>
-                  <small>Derive a key via PBKDF2</small>
+                  <small>Require a separately shared password</small>
                 </span>
               </label>
               <label class="check">
@@ -302,7 +306,7 @@
       <section class="workspace-header" aria-label="File workspace">
         <div class="workspace-heading">
           <button class="text-button back-home" type="button" data-screen="home">Home</button>
-          <h2>Files</h2>
+          <h2>Send files</h2>
         </div>
       </section>
       <section id="filePanel" class="workspace" aria-labelledby="file-title">
@@ -368,7 +372,7 @@
                 <i aria-hidden="true"></i>
                 <span>
                   <strong>Burn after read</strong>
-                  <small>Destroy the sender copy after first view</small>
+                  <small>Remove the hosted capsule after the first open</small>
                 </span>
               </label>
               <label class="check">
@@ -376,7 +380,7 @@
                 <i aria-hidden="true"></i>
                 <span>
                   <strong>Password protect</strong>
-                  <small>Derive a key via PBKDF2</small>
+                  <small>Require a separately shared password</small>
                 </span>
               </label>
               <label class="check">
@@ -430,7 +434,7 @@
             <p>Share</p>
             <h2>Your drop</h2>
           </div>
-          <p class="result-lead">Short /c/ link for every drop within the app limits. Download Capsule stays as a backup.</p>
+          <p class="result-lead">Encrypt your files, then share the private link.</p>
           <ul class="file-limits" aria-label="File limits">
             <li><strong>5</strong> files max</li>
             <li><strong>2 MB</strong> each</li>
@@ -452,7 +456,7 @@
           <div class="button-row secondary-actions">
             <button id="fileDownloadCapsule" class="secondary file-action-download" type="button" disabled>Download Capsule</button>
           </div>
-          <p class="result-hint" id="fileResultHint">Create a file capsule to get a short /c/ link. Download Capsule remains available as a backup.</p>
+          <p class="result-hint" id="fileResultHint">A portable capsule is available after encryption.</p>
           <p id="fileStatus" class="status"></p>
         </aside>
       </section>
@@ -462,12 +466,13 @@
       <section class="workspace-header" aria-label="Receive workspace">
         <div class="workspace-heading">
           <button class="text-button back-home" type="button" data-screen="home">Home</button>
-          <h2>Receive</h2>
+          <h2>Open a capsule</h2>
         </div>
       </section>
 
       <section id="receivePanel" class="workspace" aria-labelledby="receive-title">
         <div class="viewer">
+          <form id="openLinkForm" class="open-link-form"><label for="incomingLink">Capsule link</label><div><input id="incomingLink" type="text" required placeholder="Paste a private Capsule link" autocomplete="off" spellcheck="false" /><button class="primary" type="submit">Open link</button></div></form>
           <div id="receiveEmpty" class="empty-state">
             <span class="empty-icon" aria-hidden="true"></span>
             <h2 id="receive-title">Open a capsule</h2>
@@ -581,9 +586,8 @@
       </section>
       <section class="collect-presets" aria-label="Collection presets">
         <div class="collect-intro">
-          <p class="eyebrow">Encrypted Collections</p>
-          <h2>Choose how you want to collect.</h2>
-          <p>Both presets use the same encrypted submission engine. Pick the shape that matches the job.</p>
+          <h2>Collect private replies</h2>
+          <p>Request a single reply or create a form for multiple responses.</p>
         </div>
         <div class="collect-preset-grid">
           <button class="collect-preset" type="button" data-screen="request">
@@ -627,15 +631,15 @@
         <path d="M4.5 10.5 12 4.5l7.5 6V19a1.5 1.5 0 0 1-1.5 1.5h-3.75v-5.25h-4.5V20.5H6A1.5 1.5 0 0 1 4.5 19v-8.5Z"
           stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
       </svg>
-      <span>Home</span>
+      <span>My Capsules</span>
     </button>
     <button type="button" class="mobile-nav-item" data-screen="prompt">
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M5 7h14M5 12h14M5 17h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
       </svg>
-      <span>Prompt</span>
+      <span>Send</span>
     </button>
-    <button type="button" class="mobile-nav-item" data-screen="file">
+    <button type="button" class="mobile-nav-item mobile-files-shortcut" data-screen="file" hidden>
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path
           d="M7 3.75h6.5L17.25 7.5V18.5A1.75 1.75 0 0 1 15.5 20.25H7A1.75 1.75 0 0 1 5.25 18.5V5.5A1.75 1.75 0 0 1 7 3.75Z"
@@ -657,12 +661,19 @@
           stroke-linejoin="round" />
         <path d="M5 18.5h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
       </svg>
-      <span>Receive</span>
+      <span>Open</span>
     </button>
   </nav>
 
+  <script src="/routes.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/collections.js" defer></script>
+  <script src="/workspace.js" defer></script>
+  <script src="/features.js" defer></script>
+  <script src="/transfer-core.js" defer></script>
+  <script src="/transfer-recovery.js" defer></script>
+  <script src="/accounts.js" defer></script>
+  <script src="/transfers.js" defer></script>
 </body>
 
 </html>

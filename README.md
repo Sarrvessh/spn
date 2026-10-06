@@ -1,6 +1,42 @@
 # Prompt Capsule
 
-Prompt Capsule is a browser-only encrypted prompt and file sharing app.
+## Public Account-Free Edition
+
+The temporary Sites deployment is now owner-private at the user's request.
+The existing Vercel project is `sarrvesshs-projects/spn`, linked to this repo's
+`main` branch, with production domain `capsule.sarveshpv.com`.
+Root `vercel.json` builds only the account-free edition into `guest-release/dist`;
+`.vercelignore` excludes backend source and private/local files from deployment.
+Pushing to `main` triggers Vercel through the existing Git integration.
+The account-enabled deployment configuration is preserved in `vercel.accounts.json`.
+This public edition has no sign-in: encrypted prompt links, encrypted file
+downloads, local history, templates and encrypted workspace backup/restore.
+It does not include hosted short links, collections, cloud inboxes, revocation,
+one-time downloads, or server-enforced expiry. Files stay local and are shared
+as portable encrypted capsules (5 files, 2 MB each, 5 MB total).
+
+Build with `npm run build:guest`; preview with `node scripts/preview-guest.cjs 4177`.
+The reproducible frontend-only bundle is in `guest-release/dist`.
+See [PUBLIC_RELEASE.md](PUBLIC_RELEASE.md) for deployment and verification details.
+
+Production transfer upgrade: start with [DEPLOYMENT.md](DEPLOYMENT.md),
+[SECURITY.md](SECURITY.md), and [PRODUCTION_HANDOFF.md](PRODUCTION_HANDOFF.md).
+New 5 GB private transfers are disabled until external configuration and staging
+acceptance pass. Existing small-link workflows retain their legacy formats.
+
+Capsule encrypts prompts and files in the browser, with hosted APIs for delivery,
+accounts, private object storage and collection management.
+
+## Run Locally
+
+`npm ci`, then `npm run dev`. Open `http://127.0.0.1:4174/workspace`
+or the dedicated sign-in page at `http://127.0.0.1:4174/login`.
+The server loads `.env.local` and runs the same API handlers used on Vercel.
+Without service credentials, hosted sharing and sign-in are explicitly unavailable;
+local editing and portable capsules still work. See `.env.example` and `DEPLOYMENT.md`.
+
+Before a release run `npm run build`, `npm test`, and `npm run release:check`.
+The last command checks production configuration, not external connectivity.
 
 ## Product Model
 
@@ -51,7 +87,11 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the end-to-end storage, upload, burn,
 - The server stores opaque encrypted blobs only — no keys, no plaintext.
 - Link `#key` fragments are not sent to the server during navigation.
 
-## Deploy on Vercel (free)
+## Account-Enabled Deployment (Optional)
+
+The steps below apply only after restoring `vercel.accounts.json` as the active
+deployment config and removing the account-free deployment allowlist. They are
+not required for the default account-free production build.
 
 1. Push this repo and import it in [Vercel](https://vercel.com).
 2. In the project → **Storage** → create **Upstash Redis** (free tier) and link it to the project.

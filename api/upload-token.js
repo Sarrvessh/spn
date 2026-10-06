@@ -1,9 +1,9 @@
 const { handleUpload } = require("@vercel/blob/client");
 const { isValidId } = require("./_lib/capsule");
 const { isKvConfigured } = require("./_lib/kv");
-const { isBlobConfigured, registerPendingBlob } = require("./_lib/store");
+const { isBlobConfigured, registerPendingBlob, manageCapsule } = require("./_lib/store");
 
-const MAX_DIRECT_UPLOAD_BYTES = 100 * 1024 * 1024;
+const MAX_DIRECT_UPLOAD_BYTES = 8 * 1024 * 1024;
 const ALLOWED_ENCRYPTED_TYPES = [
   "application/octet-stream",
   "application/json",
@@ -43,8 +43,10 @@ module.exports = async function handler(req, res) {
         const payload = parsePayload(clientPayload);
         const id = payload.id;
         if (!isValidId(id)) throw new Error("Invalid capsule id.");
+        const owner = await manageCapsule(id, payload.ownerToken);
+        if (owner.status !== "pending") throw new Error("Upload session is no longer pending.");
         const prefix = `capsules/uploads/${id}/`;
-        if (!pathname.startsWith(prefix)) {
+        if (pathname !== `${prefix}envelope.json`) {
           throw new Error("Upload path does not match this capsule.");
         }
         return {

@@ -10,6 +10,7 @@ const { getKv, withRedisLock } = require("./kv");
 
 const BLOB_EXPIRY_INDEX = "capsule:blob-expiries:v1";
 const PENDING_TTL_SEC = 60 * 60;
+const ownerDigest = (token) => require("crypto").createHash("sha256").update(token).digest("hex");
 
 function isBlobConfigured() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
@@ -61,6 +62,21 @@ function blobError(message, code, status) {
   error.code = code;
   error.status = status;
   return error;
+}
+
+async function readBoundedEnvelope(response) {
+  const reader = response.body.getReader(), chunks = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > 8 * 1024 * 1024) throw blobError("Encrypted capsule exceeds the small-file limit.", "TOO_LARGE", 413);
+      chunks.push(value);
+    }
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } finally { await reader.cancel().catch(() => {}); }
 }
 
 async function saveCapsule(envelope) {
@@ -152,7 +168,9 @@ async function initCapsule({ kind = "capsule", expiresAt = null } = {}) {
       },
       { ex: PENDING_TTL_SEC },
     );
-    return { id, status: "pending", expiresAt: createdAt + PENDING_TTL_SEC * 1000 };
+    const ownerToken = require("crypto").randomBytes(32).toString("base64url");
+    await kv.set(`capsule-owner:${id}`, { hash: ownerDigest(ownerToken), createdAt }, { ex: 30 * 86400 });
+    return { id, ownerToken, status: "pending", expiresAt: createdAt + PENDING_TTL_SEC * 1000 };
   }
 
   throw new Error("Could not allocate a short id.");
@@ -161,14 +179,17 @@ async function initCapsule({ kind = "capsule", expiresAt = null } = {}) {
 async function registerPendingBlob(id, blob) {
   const kv = getKv();
   const key = `capsule:${id}`;
-  return withRedisLock(kv, `lock:${key}:uploads`, async () => {
+  return withRedisLock(kv, `lock:${key}:consume`, async () => {
     const record = normalizeRecord(await kv.get(key));
     if (!record || record.storage !== "pending" || record.status !== "pending") {
+      await kv.zadd(BLOB_EXPIRY_INDEX, { score: record?.blobUrl === blob.url ? record.expiresAt : Date.now(), member: blob.url });
+      if (record?.blobUrl === blob.url) return (record.uploads || []).length;
       const error = new Error("Pending capsule not found.");
       error.code = "PENDING_NOT_FOUND";
       throw error;
     }
     const uploads = Array.isArray(record.uploads) ? record.uploads : [];
+    await kv.zadd(BLOB_EXPIRY_INDEX, { score: Date.now() + PENDING_TTL_SEC * 1000, member: blob.url });
     const next = {
       ...record,
       uploads: uploads.concat({
@@ -188,7 +209,7 @@ async function registerPendingBlob(id, blob) {
 async function completeCapsule(id, envelope) {
   const kv = getKv();
   const key = `capsule:${id}`;
-  return withRedisLock(kv, `lock:${key}:complete`, async () => {
+  return withRedisLock(kv, `lock:${key}:consume`, async () => {
     const pending = normalizeRecord(await kv.get(key));
     if (!pending || pending.storage !== "pending" || pending.status !== "pending") {
       const error = new Error("Pending capsule not found.");
@@ -270,7 +291,7 @@ async function completeCapsule(id, envelope) {
 async function completeUploadedCapsule(id, uploadedBlob) {
   const kv = getKv();
   const key = `capsule:${id}`;
-  return withRedisLock(kv, `lock:${key}:complete`, async () => {
+  return withRedisLock(kv, `lock:${key}:consume`, async () => {
     const pending = normalizeRecord(await kv.get(key));
     if (!pending || pending.storage !== "pending" || pending.status !== "pending") {
       const error = new Error("Pending capsule not found.");
@@ -281,7 +302,9 @@ async function completeUploadedCapsule(id, uploadedBlob) {
     const upload = uploadedBlob || {};
     const pathname = String(upload.pathname || "");
     const url = String(upload.url || "");
-    if (!pathname.startsWith(`capsules/uploads/${id}/`) || !url) {
+    let objectUrl;
+    try { objectUrl = new URL(url); } catch {}
+    if (pathname !== `capsules/uploads/${id}/envelope.json` || !objectUrl || objectUrl.protocol !== "https:" || !/^[a-z0-9-]+\.public\.blob\.vercel-storage\.com$/.test(objectUrl.hostname) || objectUrl.username || objectUrl.password || objectUrl.port || objectUrl.search || objectUrl.hash || objectUrl.pathname !== `/${pathname}`) {
       const error = new Error("Uploaded capsule payload is not linked to this short id.");
       error.code = "UPLOAD_MISMATCH";
       throw error;
@@ -289,7 +312,7 @@ async function completeUploadedCapsule(id, uploadedBlob) {
 
     let response;
     try {
-      response = await fetch(url);
+      response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(8000) });
     } catch {
       throw blobError("Blob storage is temporarily unavailable.", "BLOB_UNAVAILABLE", 503);
     }
@@ -299,7 +322,7 @@ async function completeUploadedCapsule(id, uploadedBlob) {
 
     let envelope;
     try {
-      envelope = await response.json();
+      envelope = await readBoundedEnvelope(response);
     } catch {
       throw blobError("Uploaded Blob is not a valid encrypted capsule.", "BLOB_INVALID", 422);
     }
@@ -365,6 +388,8 @@ async function readCapsuleRecord(kv, key, record, consume) {
 
   if (consume) {
     await kv.del(key);
+    const owner = await kv.get(`capsule-owner:${key.slice(8)}`);
+    if (owner) await kv.set(`capsule-owner:${key.slice(8)}`, { ...owner, status: "burned" }, { ex: 30 * 86400 });
     if (record.storage === "blob" && record.blobUrl) {
       if (await deleteBlobQuietly(record.blobUrl)) {
         try {
@@ -386,10 +411,7 @@ async function loadCapsule(id, options = {}) {
   const initial = normalizeRecord(await kv.get(key));
   if (!initial) return null;
 
-  if (!initial.burnAfterRead) {
-    return readCapsuleRecord(kv, key, initial, false);
-  }
-  if (!options.consumeBurn) {
+  if (initial.burnAfterRead && !options.consumeBurn) {
     throw blobError(
       "Burn-after-read capsules require an explicit open request.",
       "BURN_REQUIRES_CONSUME",
@@ -400,7 +422,31 @@ async function loadCapsule(id, options = {}) {
   return withRedisLock(kv, `lock:${key}:consume`, async () => {
     const record = normalizeRecord(await kv.get(key));
     if (!record) return null;
-    return readCapsuleRecord(kv, key, record, true);
+    return readCapsuleRecord(kv, key, record, Boolean(record.burnAfterRead));
+  });
+}
+
+async function manageCapsule(id, token, action = "status") {
+  const kv = getKv();
+  return withRedisLock(kv, `lock:capsule:${id}:consume`, async () => {
+    const owner = await kv.get(`capsule-owner:${id}`);
+    if (!owner || typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token) || !require("crypto").timingSafeEqual(Buffer.from(owner.hash, "hex"), Buffer.from(ownerDigest(token), "hex"))) {
+      throw blobError("Owner access is invalid or expired.", "OWNER_INVALID", 403);
+    }
+    const record = await kv.get(`capsule:${id}`);
+    if (action !== "status") {
+      if (!["revoke", "delete"].includes(action)) throw blobError("Invalid owner action.", "ACTION_INVALID", 400);
+      await kv.del(`capsule:${id}`);
+      const urls = new Set([record?.blobUrl, ...(record?.uploads || []).map((upload) => upload.url)].filter(Boolean));
+      for (const url of urls) {
+        // Queue first so a failed deletion is retried by the cleanup job.
+        await kv.zadd(BLOB_EXPIRY_INDEX, { score: Date.now(), member: url });
+        if (await deleteBlobQuietly(url)) await kv.zrem(BLOB_EXPIRY_INDEX, url);
+      }
+      owner.status = action === "revoke" ? "revoked" : "deleted";
+      await kv.set(`capsule-owner:${id}`, owner, { ex: 30 * 86400 });
+    }
+    return { status: owner.status || (!record ? "unavailable" : record.expiresAt && Number(record.expiresAt) <= Date.now() ? "expired" : record.status === "pending" ? "pending" : "active"), expiresAt: record?.expiresAt || null };
   });
 }
 
@@ -413,4 +459,5 @@ module.exports = {
   loadCapsule,
   isBlobConfigured,
   cleanupExpiredBlobs,
+  manageCapsule,
 };

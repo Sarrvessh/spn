@@ -1,0 +1,111 @@
+{
+  "buildCommand": "npm run build",
+  "functions": {
+    "api/cron/cleanup-transfers.js": {
+      "maxDuration": 300
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/login",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/signup",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/forgot-password",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/reset-password",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/auth/confirm",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/account",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/workspace",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/send/prompt",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/send/files",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/collect",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/collect/request",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/collect/form",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/open",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/c/:id([A-Za-z0-9]{8})",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/r/:token([A-Za-z0-9_-]{20,80})",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/f/:token([A-Za-z0-9_-]{20,80})",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/cleanup-blobs",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-transfers",
+      "schedule": "0 * * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.public.blob.vercel-storage.com https://*.blob.vercel-storage.com; connect-src 'self' https://vercel.com https://blob.vercel-storage.com https://*.blob.vercel-storage.com https://*.public.blob.vercel-storage.com https://*.amazonaws.com https://*.supabase.co; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    }
+  ]
+}
